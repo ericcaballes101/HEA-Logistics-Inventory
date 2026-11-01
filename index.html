@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WV HEA Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<!-- SheetJS for Excel upload & parse -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#14283f;--blue:#2364a5;--teal:#16877b;--bg:#f3f6fa;--ink:#1d2939;
+  --muted:#667085;--line:#e4e9f0;--white:#fff;--red:#c0392b;--amber:#b7791f;
+  --emerald:#13795b;--emerald-bg:#e7f5ef;--amber-bg:#fff3d6;--red-bg:#fde8e7;--blue-bg:#e8eefc;
+  --slate50:#f8fafc;--slate100:#f1f5f9;--slate200:#e2e8f0;--slate300:#cbd5e1;
+  --slate400:#94a3b8;--slate500:#64748b;--slate600:#475569;--slate700:#334155;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+header{background:#F2591C;color:white;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.header-left{display:flex;align-items:center;gap:12px}
+header h1{font-size:20px;font-weight:800;letter-spacing:-.02em}
+header p{margin-top:2px;color:#fff;opacity:.85;font-size:12px}
+.header-stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.1);font-size:13px}
+.stat-chip b{font-weight:700}
+nav{display:flex;gap:2px;padding:0 24px;background:white;border-bottom:1px solid var(--line);overflow-x:auto;position:sticky;top:0;z-index:20;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+nav button{background:transparent;color:var(--slate500);white-space:nowrap;border:0;border-bottom:2px solid transparent;padding:14px 16px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s;border-radius:0}
+nav button:hover{background:var(--slate50);color:var(--slate700)}
+nav button.active{border-bottom-color:var(--blue);color:var(--blue)}
+nav button svg{width:16px;height:16px}
+main{max-width:1500px;margin:0 auto;padding:22px 24px}
+.hidden{display:none!important}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.card{background:white;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:0 2px 5px rgba(20,43,63,.04);transition:box-shadow .2s,transform .2s;cursor:pointer}
+.card:hover{box-shadow:0 6px 16px rgba(20,43,63,.12);transform:translateY(-2px)}
+.card:active{transform:translateY(0)}
+.card-icon{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:white;margin-bottom:10px}
+.card-icon svg{width:22px;height:22px}
+.metric-label{color:var(--muted);font-size:12px}
+.metric{font-size:26px;font-weight:700;margin-top:4px;color:var(--navy)}
+.metric-sub{font-size:11px;color:var(--slate400);margin-top:2px}
+.panel{background:white;border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 2px 5px rgba(20,43,63,.04)}
+.panel h2{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:14px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.panel-head h2{margin:0}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.notice{padding:10px 14px;border-radius:8px;background:#edf5ff;color:#244d78;margin-bottom:14px;font-size:12px;line-height:1.6}
+.notice code{background:rgba(36,77,120,.1);padding:1px 5px;border-radius:4px;font-size:11px}
+.filter-bar{background:var(--slate50);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.filter-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-left label{font-weight:700;color:var(--navy);font-size:13px;display:flex;align-items:center;gap:6px;margin:0}
+button,.filebtn{border:0;border-radius:8px;padding:9px 14px;background:var(--blue);color:white;font:inherit;font-weight:600;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;transition:background .15s}
+button:hover,.filebtn:hover{background:#1d4f85}
+button.secondary,.filebtn.secondary{background:var(--slate100);color:var(--slate700)}
+button.secondary:hover,.filebtn.secondary:hover{background:var(--slate200)}
+button.danger{background:#b93832;color:white}
+button.danger:hover{background:#a52d27}
+button.green,.filebtn.green{background:var(--teal);color:white}
+button.green:hover,.filebtn.green:hover{background:#13795b}
+button svg{width:15px;height:15px}
+input,select,textarea{border:1px solid var(--slate300);border-radius:8px;padding:9px 11px;font:inherit;background:white;min-width:0;font-size:14px;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(35,100,165,.12)}
+input:disabled{background:var(--slate100);color:var(--slate500)}
+input[type=search]{min-width:200px}
+input[type=date]{min-width:150px}
+label{display:block;font-size:12px;color:var(--slate600);margin-bottom:5px;font-weight:500}
+.formgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.field{display:flex;flex-direction:column}
+.field.wide{grid-column:span 2}
+.field.wide-3{grid-column:span 3}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;align-items:flex-end;grid-column:1/-1;margin-top:4px}
+.form-section{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);padding-bottom:4px;margin-top:4px}
+table{width:100%;border-collapse:collapse;min-width:680px}
+th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:var(--slate50);font-weight:600}
+th.r,td.r{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr{transition:background .1s}
+tbody tr:hover{background:var(--slate50)}
+tr.total-row td{background:var(--slate50);font-weight:700;border-top:2px solid var(--slate300)}
+tr.open-row td{background:#f6faff;font-weight:600}
+.table-wrap{overflow:auto;border-radius:8px}
+.pill{display:inline-block;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;background:var(--emerald-bg);color:var(--emerald);white-space:nowrap}
+.pill.low{background:var(--amber-bg);color:#946200}
+.pill.out{background:var(--red-bg);color:#a62e28}
+.pill.in{background:var(--emerald-bg);color:var(--emerald)}
+.pill.adj{background:var(--blue-bg);color:#2a4a9b}
+.pill.open{background:var(--slate100);color:var(--slate600)}
+.muted{color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:28px}
+.actions{display:flex;gap:6px}
+.actions button{padding:6px 9px;font-size:12px;border-radius:6px}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--slate600);white-space:nowrap}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:white;padding:14px 20px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:13px;font-weight:600;z-index:100;opacity:0;transform:translateY(20px);transition:all .3s;max-width:420px}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{background:#b93832}
+.modal-overlay{position:fixed;inset:0;background:rgba(20,43,63,.55);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
+.modal-overlay.open{opacity:1;visibility:visible}
+.modal{background:white;border-radius:14px;max-width:600px;width:100%;box-shadow:0 20px 60px rgba(20,43,63,.3);transform:translateY(12px);transition:transform .2s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 22px 16px;border-bottom:1px solid var(--line)}
+.modal-head h3{font-size:18px;font-weight:700;color:var(--navy)}
+.modal-head .close-btn{background:var(--slate100);color:var(--slate600);border:0;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:18px;display:grid;place-items:center;transition:background .15s;padding:0}
+.modal-head .close-btn:hover{background:var(--slate200)}
+.modal-body{padding:20px 22px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
+.detail-field{display:flex;flex-direction:column}
+.detail-field.full{grid-column:1/-1}
+.detail-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;margin-bottom:3px}
+.detail-value{font-size:14px;color:var(--ink);font-weight:600}
+.modal-actions{display:flex;gap:8px;padding:16px 22px;border-top:1px solid var(--line)}
+.ledger-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 18px;margin-bottom:16px;padding:14px 16px;background:var(--slate50);border:1px solid var(--line);border-radius:10px}
+@media(max-width:520px){.detail-grid{grid-template-columns:1fr}}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.formgrid{grid-template-columns:repeat(2,1fr)}.ledger-sum{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){main{padding:14px}.grid{grid-template-columns:repeat(2,1fr);gap:8px}.metric{font-size:22px}header{padding:15px}.formgrid{grid-template-columns:1fr}.field.wide,.field.wide-3{grid-column:span 1}nav{padding:0 14px}nav button{padding:12px 12px;font-size:13px}}
+@media print{header,nav,.notice,.filter-bar,.toolbar button,.toolbar select,.toolbar input,.toolbar label,.actions,.toast,footer{display:none!important}body{background:#fff}main{padding:0;max-width:none}.panel{box-shadow:none;border:0;padding:0}.card{box-shadow:none}.table-wrap{overflow:visible}table{min-width:0}th,td{padding:5px 6px;font-size:10px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <div>
+      <h1>WV HEA Inventory</h1>
+      <p>Inventory monitoring · Stock ledger · Receipts &amp; issues</p>
+    </div>
+  </div>
+  <div class="header-stats" id="headerStats"></div>
+</header>
+<nav>
+  <button class="active" data-tab="dashboard" onclick="showTab('dashboard',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </button>
+  <button data-tab="items" onclick="showTab('items',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+    Item Master
+  </button>
+  <button data-tab="transactions" onclick="showTab('transactions',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17l-4-4 4-4"/><path d="M3 13h14"/><path d="M17 7l4 4-4 4"/><path d="M21 11H7"/></svg>
+    Inbound / Outbound
+  </button>
+  <button data-tab="ledger" onclick="showTab('ledger',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    Stock Ledger
+  </button>
+  <button data-tab="count" onclick="showTab('count',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    Stock Count
+  </button>
+  <button data-tab="reports" onclick="showTab('reports',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+    Reports
+  </button>
+  <button data-tab="audit" onclick="showTab('audit',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    Audit Log
+  </button>
+  <button data-tab="settings" onclick="showTab('settings',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</nav>
+<main>
+  <!-- DASHBOARD -->
+  <section id="dashboard">
+    <div class="notice">
+      <b>Keyboard Shortcuts:</b> <code>Alt+U</code> Upload Excel · <code>Alt+D</code> Dashboard · <code>Alt+I</code> Items · <code>Alt+T</code> Transactions · <code>Alt+L</code> Stock Ledger · <code>Alt+C</code> Stock Count · <code>Alt+R</code> Reports · <code>Alt+A</code> Audit Log
+    </div>
+    <div class="filter-bar">
+      <div class="filter-left">
+        <label>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Dashboard Monthly Filter:
+        </label>
+        <select id="dashMonthFilter" onchange="renderDashboard()" style="font-weight:600;min-width:200px"></select>
+      </div>
+      <span class="muted" id="dashFilterInfo" style="font-size:12px">Showing all recorded movements</span>
+    </div>
+    <div class="grid" id="metricsGrid"></div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Current Stock Summary</h2>
+        <div class="toolbar">
+          <input type="search" id="dashStockSearch" placeholder="Search stock summary..." oninput="renderDashboard()">
+          <span class="stat-chip" style="background:#16877b;color:white"><b>Total Weight: </b><span id="dashStockTotal">—</span></span>
+          <button class="secondary" onclick="showTab('items')">Manage Items</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item Code</th><th>Item</th><th>Category</th><th>Location</th><th>PO#</th><th class="r">Opening</th><th class="r">Received</th><th class="r">Issued</th><th class="r">Adj.</th><th class="r">Balance</th><th>Unit</th><th class="r">Weight (tons)</th><th class="r">Reorder level</th><th>Status</th></tr></thead>
+          <tbody id="dashStock"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Recent Activity (Filtered)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Item Code</th><th>Item</th><th class="r">Quantity</th><th>Reference / Notes</th></tr></thead>
+          <tbody id="recentTx"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ITEM MASTER -->
+  <section id="items" class="hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="itemFormTitle">Add Inventory Item</h2>
+        <button class="green" id="toggleFormBtn" onclick="toggleForm()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Item
+        </button>
+      </div>
+      <form id="itemForm" class="formgrid" style="display:none">
+        <input type="hidden" id="editId">
+        <div class="form-section">Identification</div>
+        <div class="field"><label>Item code (auto if blank)</label><input id="itemCode" placeholder="e.g. ITM-0001"></div>
+        <div class="field wide"><label>Item name *</label><input id="itemName" required placeholder="e.g. Hygiene Kit"></div>
+        <div class="field"><label>Category</label><input id="itemCategory" placeholder="e.g. Relief Supplies"></div>
+        <div class="field wide"><label>Description</label><input id="itemNotes" placeholder="Item description / remarks"></div>
+        <div class="field"><label>PO#</label><input id="itemPO" placeholder="e.g. PO-12345"></div>
+        <div class="field"><label>Storage Location</label><input id="itemLocation" placeholder="e.g. Warehouse A, Quezon City"></div>
+        <div class="form-section">Specifications</div>
+        <div class="field"><label>Unit of measure</label><input id="itemUnit" placeholder="e.g. kit, box, pcs" value="pcs"></div>
+        <div class="field"><label>Weight per unit (kg)</label><input id="itemWeight" type="number" min="0" step="0.001" value="0"></div>
+        <div class="field"><label>Dimensions (L×W×H cm)</label><input id="itemDimensions" placeholder="e.g. 40×30×20"></div>
+        <div class="field"><label>Reorder level (minimum stock)</label><input id="itemReorder" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field"><label>Batch / Lot no.</label><input id="itemBatch" placeholder="Optional"></div>
+        <div class="field"><label>Expiry date</label><input id="itemExpiry" type="date"></div>
+        <div class="form-section">Opening position</div>
+        <div class="field"><label>Date *</label><input id="itemDate" type="date" required></div>
+        <div class="field"><label>Opening balance</label><input id="itemStock" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field"><label>Dispatched at creation (deducted from balance)</label><input id="itemDispatched" type="number" min="0" step="0.01" value="0"></div>
+        <div class="form-actions">
+          <button type="submit" class="green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save Item
+          </button>
+          <button type="button" class="secondary" onclick="resetItemForm()">Cancel</button>
+        </div>
+      </form>
+      <p class="muted" style="font-size:12px;margin-top:10px">Balance = Opening + Received − Issued ± Adjustments. It is calculated from the Inbound / Outbound records, so it can never go out of step. Truck, plate, trucking cost and demurrage are recorded on each movement.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Inventory Register</h2>
+        <div class="toolbar">
+          <input type="search" id="itemSearch" placeholder="Search items..." oninput="renderItems()">
+          <select id="itemMonthFilter" onchange="renderItems()" style="font-weight:600;min-width:160px"><option value="ALL">All Months</option></select>
+          <label class="filebtn green" for="excelImportFileNav" style="margin:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Excel
+          </label>
+          <input id="excelImportFileNav" type="file" accept=".xlsx,.xls,.csv" hidden onchange="importExcelInventory(event)">
+          <button class="secondary" onclick="exportItemsCSV()">Export CSV</button>
+          <button class="secondary" onclick="exportItemsExcel()">Export Excel</button>
+          <button class="secondary" onclick="downloadBackup()">Backup Data</button>
+          <label class="filebtn secondary" for="backupImportFile" style="margin:0">Upload Backup</label>
+          <input id="backupImportFile" type="file" accept=".json,application/json" hidden onchange="restoreBackup(event)">
+          <button class="danger" onclick="removeAllItems()">Remove All Items</button>
+          <button class="danger" onclick="deleteSelectedItems()">Delete Selected</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:40px"><input type="checkbox" id="itemSelectAll" onclick="toggleAllItems(this)"></th><th>Item Code</th><th>Item</th><th>Category</th><th>Location</th><th>PO#</th><th>Batch / Lot</th><th>Expiry</th><th class="r">Opening</th><th class="r">Received</th><th class="r">Issued</th><th class="r">Adj.</th><th class="r">Balance</th><th>Unit</th><th class="r">Weight (kg/unit)</th><th>Dimensions (cm)</th><th class="r">Reorder</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRANSACTIONS -->
+  <section id="transactions" class="hidden">
+    <div class="panel">
+      <h2>Record Inventory Movement</h2>
+      <form id="txForm" class="formgrid">
+        <div class="field"><label>Movement type *</label><select id="txType"><option value="INBOUND">Inbound / Receive</option><option value="OUTBOUND">Outbound / Issue</option></select></div>
+        <div class="field wide"><label>Item *</label><select id="txItem" required></select></div>
+        <div class="field"><label>Quantity *</label><input id="txQty" type="number" min="0.01" step="0.01" required></div>
+        <div class="field"><label>Date *</label><input id="txDate" type="date" required></div>
+        <div class="field"><label>Total weight (kg) — auto, editable</label><input id="txWeight" type="number" min="0" step="0.001" placeholder="Qty × weight per unit"></div>
+        <div class="field"><label>Document ref. (DR, RR, Waybill)</label><input id="txRef" placeholder="DR, RR, Waybill no."></div>
+        <div class="field"><label>PO#</label><input id="txPO" placeholder="e.g. PO-12345"></div>
+        <div class="field"><label>Supplier / Donor / Recipient</label><input id="txParty" placeholder="Source or destination"></div>
+        <div class="field"><label>Storage Location</label><input id="txLocation" placeholder="e.g. Warehouse A"></div>
+        <div class="field"><label>Vehicle Type / Truck Type</label><input id="txVehicleType" placeholder="e.g. 10-wheeler, Wing Van"></div>
+        <div class="field"><label>Plate Number</label><input id="txPlateNumber" placeholder="e.g. ABC 1234"></div>
+        <div class="field"><label>Trucking Cost</label><input id="txTruckingCost" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field"><label>Demurrage Charges</label><input id="txDemurrage" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field"><label>Expiry date (optional)</label><input id="txExpiry" type="date"></div>
+        <div class="field wide-3"><label>Remarks</label><input id="txNotes" placeholder="Remarks, condition of goods, receiving team..."></div>
+        <div class="field" style="justify-content:end"><button type="submit" class="green">Save Transaction</button></div>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Transaction History</h2>
+        <div class="toolbar">
+          <input type="search" id="txSearch" placeholder="Search transactions..." oninput="renderTransactions()">
+          <select id="txMonthFilter" onchange="renderTransactions()"><option value="ALL">All Months</option></select>
+          <select id="txFilter" onchange="renderTransactions()"><option value="ALL">All movements</option><option value="INBOUND">Inbound only</option><option value="OUTBOUND">Outbound only</option><option value="ADJUSTMENT">Adjustments only</option></select>
+          <button class="secondary" onclick="exportTransactionsCSV()">Export CSV</button>
+          <button class="danger" onclick="deleteSelectedTx()">Delete Selected</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:40px"><input type="checkbox" id="txSelectAll" onclick="toggleAllTx(this)"></th><th>Date</th><th>Type</th><th>Item Code</th><th>Item</th><th class="r">Quantity</th><th class="r">Weight (kg)</th><th>Document Ref</th><th>PO#</th><th>Supplier / Recipient</th><th>Location</th><th>Vehicle Type</th><th>Plate Number</th><th class="r">Trucking Cost</th><th class="r">Demurrage</th><th>Expiry</th><th>Remarks</th><th>Actions</th></tr></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- STOCK LEDGER -->
+  <section id="ledger" class="hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Stock Ledger (Stock Card)</h2>
+        <div class="toolbar">
+          <select id="ledgerItem" onchange="renderLedger()" style="min-width:300px;font-weight:600"></select>
+          <button class="secondary" onclick="exportLedgerCSV()">Export CSV</button>
+          <button class="secondary" onclick="window.print()">Print</button>
+        </div>
+      </div>
+      <div class="ledger-sum" id="ledgerSummary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Document Ref</th><th>PO#</th><th>Supplier / Recipient</th><th>Location</th><th>Expiry</th><th class="r">Received</th><th class="r">Issued</th><th class="r">Adjustment</th><th class="r">Balance</th><th>Remarks</th></tr></thead>
+          <tbody id="ledgerBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- STOCK COUNT -->
+  <section id="count" class="hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Physical Stock Count &amp; Variance</h2>
+        <div class="toolbar">
+          <label style="margin:0;font-weight:700">Count date:</label>
+          <input type="date" id="countDate" oninput="saveCountMeta()">
+          <input type="text" id="countRef" placeholder="Count sheet no." style="min-width:150px" oninput="saveCountMeta()">
+          <button class="secondary" onclick="exportCountSheet()">Export Count Sheet</button>
+          <button class="secondary" onclick="clearCountDraft()">Clear Draft</button>
+          <button class="green" onclick="postCount()">Post Variances</button>
+        </div>
+      </div>
+      <div class="notice" id="countDraftInfo"></div>
+      <p class="muted" style="font-size:13px;margin-bottom:14px">Enter the physical count for each item counted (leave blank to skip). Each number is saved automatically as you type, so the count is kept even if the app is closed or the page is refreshed. Variance = Physical − System balance at the time of counting. When the count is complete, a supervisor presses Post Variances (passcode required) to record each variance as an adjustment in the stock ledger.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item Code</th><th>Item</th><th>Location</th><th>Unit</th><th class="r">System balance</th><th>Physical count</th><th class="r">Variance</th></tr></thead>
+          <tbody id="countBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUDIT LOG -->
+  <section id="audit" class="hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Audit Log — Deleted &amp; Adjusted Items</h2>
+        <div class="toolbar">
+          <input type="search" id="auditSearch" placeholder="Search audit log..." oninput="renderAudit()">
+          <select id="auditFilter" onchange="renderAudit()" style="font-weight:600">
+            <option value="ALL">All records</option>
+            <option value="DELETED">All deleted</option>
+            <option value="DELETED_ITEM">Deleted items</option>
+            <option value="DELETED_TRANSACTION">Deleted transactions</option>
+            <option value="ADJUSTMENT">Adjusted items (stock count)</option>
+          </select>
+          <button class="secondary" onclick="exportAuditCSV()">Export CSV</button>
+          <button class="secondary" onclick="showTab('dashboard')">Lock</button>
+        </div>
+      </div>
+      <p class="muted" style="font-size:13px;margin-bottom:14px">Every deletion and stock adjustment is recorded here automatically. The log is protected by the passcode and locks again when you leave this tab. Records cannot be edited or cleared from this screen.</p>
+      <div class="ledger-sum" id="auditSummary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date &amp; Time</th><th>Action</th><th>Item Code</th><th>Item</th><th class="r">Qty / Variance</th><th>Reference</th><th>Details</th></tr></thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="hidden">
+    <div class="panel" style="max-width:480px">
+      <h2>Change Delete Passcode</h2>
+      <p class="muted" style="font-size:13px;margin-bottom:14px">This passcode is required before any item or transaction can be deleted, before stock count adjustments are posted, and to open the Audit Log. It is stored in this browser only.</p>
+      <form id="passcodeForm" class="formgrid" style="grid-template-columns:1fr">
+        <div class="field"><label>Current passcode *</label><input id="currentPasscode" type="password" placeholder="Enter current passcode" required></div>
+        <div class="field"><label>New passcode *</label><input id="newPasscode" type="password" placeholder="Enter new passcode" required></div>
+        <div class="field"><label>Confirm new passcode *</label><input id="confirmPasscode" type="password" placeholder="Re-enter new passcode" required></div>
+        <div class="form-actions">
+          <button type="submit" class="green">Update Passcode</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="reports" class="hidden">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Monthly Stock Movement Report</h2>
+        <div class="toolbar">
+          <label style="margin:0;font-weight:700">Filter Report Month:</label>
+          <select id="reportMonthFilter" onchange="renderReports()" style="font-weight:600"><option value="ALL">All Months / Lifetime</option></select>
+          <button onclick="exportItemsCSV()">Download Inventory CSV</button>
+          <button class="secondary" onclick="exportTransactionsCSV()">Download Movement CSV</button>
+          <button class="secondary" onclick="window.print()">Print Report</button>
+        </div>
+      </div>
+      <p class="muted" style="font-size:13px;margin-bottom:14px">Opening balance + Received − Issued ± Adjustments = Closing balance for the selected period. For "All Months" the opening balance is the item's original opening balance.</p>
+      <div class="panel-head" style="margin-top:10px">
+        <span class="muted" style="font-size:12px">Use checkboxes to select items for deletion</span>
+        <button class="danger" onclick="deleteSelectedReportItems()">Delete Selected Items</button>
+      </div>
+      <div class="table-wrap" style="margin-top:14px">
+        <table>
+          <thead><tr><th style="width:40px"><input type="checkbox" id="reportItemSelectAll" onclick="toggleAllReportItems(this)"></th><th>Item Code</th><th>Item</th><th>Category</th><th>Location</th><th>PO#</th><th>Date Recorded</th><th class="r">Opening</th><th class="r">Received</th><th class="r">Issued</th><th class="r">Adj.</th><th class="r">Closing Balance</th><th>Unit</th><th class="r">Closing Wt (tons)</th><th>Status</th></tr></thead>
+          <tbody id="reportBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="movementDetailTitle">Movement Detail</h2>
+        <button class="danger" onclick="deleteSelectedReportTx()">Delete Selected Transactions</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:40px"><input type="checkbox" id="reportTxSelectAll" onclick="toggleAllReportTx(this)"></th><th>Date</th><th>Type</th><th>Item Code</th><th>Item</th><th class="r">Quantity</th><th>Document Ref</th><th>PO#</th><th>Supplier / Recipient</th><th>Remarks</th></tr></thead>
+          <tbody id="reportTxBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>WV HEA Inventory · Standalone · Project By: EAC</footer>
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="cardModal" onclick="if(event.target===this)closeCardDetail()">
+  <div class="modal" style="max-width:1150px">
+    <div class="modal-head">
+      <div><h3 id="cardTitle">—</h3><div class="muted" id="cardSub" style="font-size:12px;margin-top:2px"></div></div>
+      <button class="close-btn" onclick="closeCardDetail()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="ledger-sum" id="cardSummary"></div>
+      <div class="table-wrap" style="max-height:55vh">
+        <table id="cardTable"><thead id="cardHead"></thead><tbody id="cardBody"></tbody></table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="green" onclick="downloadCardCSV()">Download CSV</button>
+      <button onclick="downloadCardExcel()">Download Excel</button>
+      <button class="secondary" onclick="closeCardDetail()">Close</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="itemDetailModal" onclick="if(event.target===this)closeItemDetail()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="detailTitle">—</h3>
+      <button class="close-btn" onclick="closeItemDetail()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="detailStatus" style="margin-bottom:16px"></div>
+      <div class="detail-grid" id="detailGrid"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="green" onclick="editFromDetail()">Edit Item</button>
+      <button onclick="ledgerFromDetail()">View Stock Card</button>
+      <button class="secondary" onclick="closeItemDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== DATA LAYER (localStorage) ====== */
+const KEY='reliefInventory_v2';
+const DB_VERSION=3;
+let db=loadDB();
+let ledgerSelId=null;
+let auditUnlocked=false;
+
+function num(v){const n=Number(v);return isFinite(n)?n:0}
+function round(v){return Math.round(num(v)*100)/100}
+function fmt(v){return num(v).toLocaleString(undefined,{maximumFractionDigits:2})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,9)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function today(){return new Date().toISOString().slice(0,10)}
+function txSort(a,b){return String(a.date||'').localeCompare(String(b.date||''))||num(a.created)-num(b.created)}
+function daysTo(dateStr){return Math.ceil((new Date(dateStr)-new Date(today()))/86400000)}
+function pad(n){return String(n).padStart(4,'0')}
+function maxCodeNum(items){let m=0;items.forEach(x=>{const r=/^ITM-(\d+)$/.exec(x.code||'');if(r)m=Math.max(m,Number(r[1]))});return m}
+
+function loadDB(){
+  let d=null;
+  try{d=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+  if(!d||!Array.isArray(d.items))d={items:[],transactions:[]};
+  if(!Array.isArray(d.transactions))d.transactions=[];
+  if(!Array.isArray(d.audit))d.audit=[];
+  return migrate(d);
+}
+function aggregate(d){
+  const agg={};
+  d.transactions.forEach(t=>{
+    const a=agg[t.itemId]||(agg[t.itemId]={i:0,o:0,a:0});
+    const q=num(t.qty);
+    if(t.type==='INBOUND')a.i+=q;else if(t.type==='OUTBOUND')a.o+=q;else if(t.type==='ADJUSTMENT')a.a+=q;
+  });
+  return agg;
+}
+/* Balance is always calculated: opening + received - issued +/- adjustments */
+function recalc(d){
+  d=d||db;
+  const agg=aggregate(d);
+  d.items.forEach(x=>{
+    const a=agg[x.id]||{i:0,o:0,a:0};
+    x.received=round(a.i);x.dispatched=round(a.o);x.adjusted=round(a.a);
+    x.stock=round(num(x.opening)+a.i-a.o+a.a);
+  });
+}
+/* One-time upgrade of data saved by older versions */
+function auditEntry(d,action,x,qty,ref,detail){
+  d.audit.push({id:uid(),ts:new Date().toISOString(),action:action,itemCode:(x&&x.code)||'',itemName:(x&&x.name)||'[Deleted item]',qty:qty==null?'':qty,ref:ref||'',detail:detail||''});
+}
+function migrate(d){
+  if(!Array.isArray(d.audit))d.audit=[];
+  if(!d.countDraft||typeof d.countDraft!=='object'||!d.countDraft.counts)d.countDraft={date:'',ref:'',counts:{}};
+  if(d.version===DB_VERSION){recalc(d);return d}
+  let seq=maxCodeNum(d.items);
+  d.items.forEach(x=>{
+    if(!x.code)x.code='ITM-'+pad(++seq);
+    if(x.opening==null||isNaN(Number(x.opening)))x.opening=num(x.stock);
+    x.po=x.po||'';x.batch=x.batch||'';x.expiry=x.expiry||'';
+    // shipment details now belong to the movement, not the item
+    if(x.vehicleType||x.plateNumber||num(x.truckingCost)||num(x.demurrage)){
+      const first=d.transactions.filter(t=>t.itemId===x.id).sort(txSort)[0];
+      if(first){
+        if(!first.vehicleType)first.vehicleType=x.vehicleType||'';
+        if(!first.plateNumber)first.plateNumber=x.plateNumber||'';
+        if(!num(first.truckingCost))first.truckingCost=num(x.truckingCost);
+        if(!num(first.demurrage))first.demurrage=num(x.demurrage);
+        delete x.vehicleType;delete x.plateNumber;delete x.truckingCost;delete x.demurrage;
+      }
+    }
+  });
+  // reconcile so every item keeps the balance it had before the upgrade
+  const agg=aggregate(d);
+  d.items.forEach(x=>{
+    if(x.stock==null)return;
+    const a=agg[x.id]||{i:0,o:0,a:0};
+    const expected=round(num(x.opening)+a.i-a.o+a.a);
+    const diff=round(num(x.stock)-expected);
+    if(Math.abs(diff)>0.004){
+      d.transactions.push({id:uid(),itemId:x.id,type:'ADJUSTMENT',qty:diff,date:x.date||today(),ref:'Migration',po:'',party:'',location:'',vehicleType:'',plateNumber:'',truckingCost:0,demurrage:0,notes:'Reconciliation to previously recorded stock balance',created:Date.now()});
+      auditEntry(d,'ADJUSTMENT',x,diff,'Migration','Reconciled to the previously recorded stock balance when the inventory format was upgraded.');
+    }
+  });
+  d.version=DB_VERSION;
+  recalc(d);
+  return d;
+}
+function saveDB(){recalc();localStorage.setItem(KEY,JSON.stringify(db));renderAll()}
+
+/* ====== TABS ====== */
+function showTab(id,btn){
+  if(id==='audit'&&!auditUnlocked){if(!verifyPasscode('open the Audit Log'))return;auditUnlocked=true}
+  else if(id!=='audit')auditUnlocked=false;
+  document.querySelectorAll('main section').forEach(s=>s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  (btn||document.querySelector(`nav button[data-tab="${id}"]`)).classList.add('active');
+  renderAll();
+}
+
+/* ====== HELPERS ====== */
+function statusPill(x,bal){
+  const b=bal==null?num(x.stock):num(bal);
+  if(x.expiry&&daysTo(x.expiry)<0)return '<span class="pill out">Expired</span>';
+  if(b<=0)return '<span class="pill out">Out of stock</span>';
+  if(num(x.reorder)>0&&b<=num(x.reorder))return '<span class="pill low">Low stock</span>';
+  if(x.expiry&&daysTo(x.expiry)<=90)return '<span class="pill low">Expiring soon</span>';
+  return '<span class="pill">In stock</span>';
+}
+function typePill(type){return `<span class="pill ${type==='OUTBOUND'?'out':type==='ADJUSTMENT'?'adj':'in'}">${type}</span>`}
+function itemById(id){return db.items.find(x=>x.id===id)}
+function itemName(id){return itemById(id)?.name||'[Deleted item]'}
+function itemCode(id){return itemById(id)?.code||'—'}
+function itemPO(id){
+  const it=itemById(id);
+  if(it&&it.po)return it.po;
+  const refs=db.transactions.filter(t=>t.itemId===id&&t.type==='INBOUND'&&(t.po||(t.ref&&t.ref!=='Excel Upload'))).map(t=>t.po||t.ref);
+  return refs[0]||'';
+}
+function wtTons(x,qty){return num(qty)*num(x?.weight)/1000}
+function toast(msg,isErr){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(isErr?' error':'');setTimeout(()=>t.classList.remove('show'),3500)}
+function monthLabel(m){
+  if(m==='ALL')return'All Months / Lifetime';
+  const[y,mo]=m.split('-');const d=new Date(Number(y),Number(mo)-1,1);
+  return d.toLocaleString('default',{month:'long',year:'numeric'})+' ('+m+')';
+}
+function signedQty(t){const q=num(t.qty);return t.type==='OUTBOUND'?-q:q}
+
+/* ====== STOCK LEDGER ENGINE ====== */
+function ledgerFor(x){
+  let bal=num(x.opening);
+  const lines=[{type:'OPENING',date:x.date||'',t:null,in:0,out:0,adj:0,bal:round(bal)}];
+  db.transactions.filter(t=>t.itemId===x.id).sort(txSort).forEach(t=>{
+    const q=num(t.qty);let i=0,o=0,a=0;
+    if(t.type==='INBOUND'){i=q;bal+=q}else if(t.type==='OUTBOUND'){o=q;bal-=q}else{a=q;bal+=q}
+    lines.push({type:t.type,date:t.date,t,in:i,out:o,adj:a,bal:round(bal)});
+  });
+  return lines;
+}
+
+/* ====== MONTH FILTER POPULATION ====== */
+function populateMonthFilters(){
+  const set=new Set();
+  db.transactions.forEach(t=>{if(t.date&&t.date.length>=7)set.add(t.date.slice(0,7))});
+  db.items.forEach(i=>{if(i.date&&i.date.length>=7)set.add(i.date.slice(0,7))});
+  const sorted=Array.from(set).sort().reverse();
+  ['dashMonthFilter','txMonthFilter','reportMonthFilter','itemMonthFilter'].forEach(id=>{
+    const sel=document.getElementById(id);if(!sel)return;
+    const cur=sel.value;
+    let html='<option value="ALL">'+(id==='dashMonthFilter'||id==='reportMonthFilter'?'All Months / Lifetime':'All Months')+'</option>';
+    sorted.forEach(m=>{html+=`<option value="${m}">${monthLabel(m)}</option>`});
+    sel.innerHTML=html;
+    if(sorted.includes(cur)||cur==='ALL')sel.value=cur;
+  });
+}
+
+/* ====== HEADER STATS ====== */
+function renderHeader(){
+  document.getElementById('headerStats').innerHTML=
+    `<span class="stat-chip"><b>${db.items.length}</b> items</span>`+
+    `<span class="stat-chip"><b>${db.transactions.length}</b> movements</span>`;
+}
+
+/* ====== DASHBOARD ====== */
+function renderDashboard(){
+  populateMonthFilters();
+  const mFilter=document.getElementById('dashMonthFilter')?.value||'ALL';
+  const filteredTx=db.transactions.filter(t=>mFilter==='ALL'||(t.date&&t.date.startsWith(mFilter)));
+  const lowCount=db.items.filter(x=>num(x.stock)>0&&num(x.reorder)>0&&num(x.stock)<=num(x.reorder)).length;
+  const outCount=db.items.filter(x=>num(x.stock)<=0).length;
+  const expCount=db.items.filter(x=>x.expiry&&num(x.stock)>0&&daysTo(x.expiry)<=90).length;
+  const locSet=new Set(db.items.map(x=>(x.location||'').toString().trim()).filter(Boolean));
+  const warehouseList=locSet.size>0?Array.from(locSet).slice(0,3).join(', ')+(locSet.size>3?'…':''):'No locations set';
+
+  let inQty=0,inW=0,inN=0,outQty=0,outW=0,outN=0;
+  filteredTx.forEach(t=>{
+    const it=itemById(t.itemId);
+    const q=num(t.qty),w=txKg(t)/1000;
+    if(t.type==='INBOUND'){inQty+=q;inW+=w;inN++}else if(t.type==='OUTBOUND'){outQty+=q;outW+=w;outN++}
+  });
+  const wk=weeklyMovement();
+  const fmtW=v=>v>0&&v<1?(v*1000).toLocaleString(undefined,{maximumFractionDigits:1})+' kg':v.toLocaleString(undefined,{maximumFractionDigits:2})+' tons';
+  const ic=(bg,svg)=>`<div class="card-icon" style="background:${bg}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></div>`;
+
+  document.getElementById('metricsGrid').innerHTML=`
+    <div class="card" onclick="openCardDetail('skus')" title="Click for details and downloadable report">${ic('#2364a5','<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>')}<div class="metric-label">Total item types (SKUs)</div><div class="metric">${db.items.length}</div><div class="metric-sub">Registered inventory items</div></div>
+    <div class="card" onclick="openCardDetail('weekly')" title="Click for details and downloadable report">${ic('#16877b','<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>')}<div class="metric-label">Weekly movement · current week</div><div class="metric">${wk.tx.length} <span style="font-size:14px;font-weight:600;color:var(--muted)">movement${wk.tx.length===1?'':'s'}</span></div><div class="metric-sub">${esc(weekLabel(wk.w))}</div><div class="metric-sub" style="color:#13795b">In: ${fmt(wk.agg.in.q)} · ${wk.agg.in.kg>0?fmtW(wk.agg.in.kg/1000):'—'}</div><div class="metric-sub" style="color:#c0392b">Out: ${fmt(wk.agg.out.q)} · ${wk.agg.out.kg>0?fmtW(wk.agg.out.kg/1000):'—'}</div></div>
+    <div class="card" onclick="openCardDetail('low')" title="Click for details and downloadable report">${ic('#b7791f','<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>')}<div class="metric-label">Low-stock items</div><div class="metric">${lowCount}</div><div class="metric-sub">At or below reorder level</div></div>
+    <div class="card" onclick="openCardDetail('out')" title="Click for details and downloadable report">${ic('#c0392b','<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>')}<div class="metric-label">Out-of-stock items</div><div class="metric">${outCount}</div><div class="metric-sub">Zero or negative balance</div></div>
+    <div class="card" onclick="openCardDetail('expiry')" title="Click for details and downloadable report">${ic('#8a5a00','<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>')}<div class="metric-label">Expiry alerts</div><div class="metric">${expCount}</div><div class="metric-sub">Expired or expiring within 90 days</div></div>
+    <div class="card" onclick="openCardDetail('locations')" title="Click for details and downloadable report">${ic('#6b3fa0','<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>')}<div class="metric-label">Warehouse locations</div><div class="metric">${locSet.size}</div><div class="metric-sub">${esc(warehouseList)}</div></div>
+    <div class="card" onclick="openCardDetail('inbound')" title="Click for details and downloadable report">${ic('#16877b','<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>')}<div class="metric-label">Total inbound</div><div class="metric">${fmt(inQty)}</div><div class="metric-sub">Weight: ${inW>0?fmtW(inW):'—'} · ${inN} receipt${inN===1?'':'s'}</div></div>
+    <div class="card" onclick="openCardDetail('outbound')" title="Click for details and downloadable report">${ic('#c0392b','<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>')}<div class="metric-label">Total outbound / dispatch</div><div class="metric">${fmt(outQty)}</div><div class="metric-sub">Weight: ${outW>0?fmtW(outW):'—'} · ${outN} issue${outN===1?'':'s'}</div></div>`;
+
+  document.getElementById('dashFilterInfo').textContent=mFilter==='ALL'?`Showing lifetime recorded movements · click a card for details`:`Filtered by month: ${mFilter}`;
+
+  const dq=(document.getElementById('dashStockSearch')?.value||'').toLowerCase();
+  const dItems=db.items.filter(x=>(x.code+' '+x.name+' '+x.category+' '+x.unit+' '+(x.notes||'')+' '+(x.location||'')+' '+itemPO(x.id)).toLowerCase().includes(dq));
+  const dashWeightTons=dItems.reduce((a,x)=>a+wtTons(x,x.stock),0);
+  document.getElementById('dashStockTotal').textContent=dashWeightTons>0?fmtW(dashWeightTons):'—';
+  document.getElementById('dashStock').innerHTML=dItems.map(x=>{
+    const w=wtTons(x,x.stock);
+    return `<tr><td class="code">${esc(x.code)}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.category)}</td><td>${esc(x.location)||'—'}</td><td>${esc(itemPO(x.id))||'—'}</td><td class="r">${fmt(x.opening)}</td><td class="r">${fmt(x.received)}</td><td class="r">${fmt(x.dispatched)}</td><td class="r">${num(x.adjusted)?(num(x.adjusted)>0?'+':'')+fmt(x.adjusted):'—'}</td><td class="r"><b>${fmt(x.stock)}</b></td><td>${esc(x.unit)}</td><td class="r">${w>0?fmt(w):'—'}</td><td class="r">${fmt(x.reorder)}</td><td>${statusPill(x)}</td></tr>`;
+  }).join('')||'<tr><td colspan="14" class="empty">No inventory items found. Add items or upload an Excel file.</td></tr>';
+
+  document.getElementById('recentTx').innerHTML=[...filteredTx].sort((a,b)=>txSort(b,a)).slice(0,10).map(t=>`<tr><td>${esc(t.date)}</td><td>${typePill(t.type)}</td><td class="code">${esc(itemCode(t.itemId))}</td><td>${esc(itemName(t.itemId))}</td><td class="r">${t.type==='ADJUSTMENT'&&num(t.qty)>0?'+':''}${fmt(t.qty)}</td><td>${esc(t.ref||'')} ${esc(t.notes||'')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No activity recorded for this period.</td></tr>';
+}
+
+
+/* ====== CURRENT WEEK (Monday to Sunday) ====== */
+function localISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function currentWeek(){
+  const n=new Date(),dow=(n.getDay()+6)%7;
+  const s=new Date(n.getFullYear(),n.getMonth(),n.getDate()-dow),e=new Date(s.getFullYear(),s.getMonth(),s.getDate()+6);
+  return {start:localISO(s),end:localISO(e),s,e};
+}
+function weekLabel(w){const f=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});return f(w.s)+' – '+f(w.e)+', '+w.e.getFullYear()}
+function weeklyMovement(){
+  const w=currentWeek();
+  const tx=db.transactions.filter(t=>(t.type==='INBOUND'||t.type==='OUTBOUND')&&t.date>=w.start&&t.date<=w.end).sort(txSort);
+  const agg={in:{n:0,q:0,kg:0},out:{n:0,q:0,kg:0}};
+  tx.forEach(t=>{const a=t.type==='INBOUND'?agg.in:agg.out;a.n++;a.q+=num(t.qty);a.kg+=txKg(t)});
+  return {w,tx,agg};
+}
+
+/* ====== DASHBOARD CARD DETAILS ====== */
+let cardRpt=null;
+function statusText(x,bal){
+  const b=bal==null?num(x.stock):num(bal);
+  if(x.expiry&&daysTo(x.expiry)<0)return 'Expired';
+  if(b<=0)return 'Out of stock';
+  if(num(x.reorder)>0&&b<=num(x.reorder))return 'Low stock';
+  if(x.expiry&&daysTo(x.expiry)<=90)return 'Expiring soon';
+  return 'In stock';
+}
+function buildCardReport(key){
+  const m=document.getElementById('dashMonthFilter')?.value||'ALL';
+  const period=m==='ALL'?'All months / lifetime':monthLabel(m);
+  const items=db.items;
+  const tons=(x)=>round(wtTons(x,x.stock)*1000)/1000;
+  const sumTons=arr=>round(arr.reduce((a,x)=>a+wtTons(x,x.stock),0)*1000)/1000;
+  const sumBal=arr=>round(arr.reduce((a,x)=>a+num(x.stock),0));
+  const R={key,period,generated:new Date().toLocaleString()};
+  if(key==='skus'){
+    R.title='Total item types (SKUs)';
+    R.cols=['Item Code','Item','Category','Location','PO#','Unit','Opening','Received','Issued','Adjustments','Balance','Weight (tons)','Status'];
+    R.num=[6,7,8,9,10,11];
+    R.rows=items.map(x=>[x.code,x.name,x.category||'',x.location||'',itemPO(x.id),x.unit||'',num(x.opening),num(x.received),num(x.dispatched),num(x.adjusted),num(x.stock),tons(x),statusText(x)]);
+    R.summary=[['Item types',items.length],['Categories',new Set(items.map(x=>x.category||'')).size],['Total weight (tons)',fmt(sumTons(items))]];
+  }else if(key==='weekly'){
+    const W=weeklyMovement();
+    R.title='Weekly movement — current week';
+    R.period=weekLabel(W.w)+' (Monday to Sunday)';
+    R.cols=['Date','Day','Type','Item Code','Item','Quantity','Unit','Weight (kg)','Document Ref','PO#','Supplier / Recipient','Location','Remarks'];
+    R.num=[5,7];
+    R.rows=W.tx.map(t=>{const x=itemById(t.itemId);return [t.date,new Date(t.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}),t.type,itemCode(t.itemId),itemName(t.itemId),num(t.qty),x?.unit||'',round(txKg(t)),t.ref||'',t.po||'',t.party||'',t.location||'',t.notes||'']});
+    R.summary=[['Week',weekLabel(W.w)],['Inbound',fmt(W.agg.in.q)+' in '+W.agg.in.n+' receipt'+(W.agg.in.n===1?'':'s')],['Inbound weight (tons)',fmt(W.agg.in.kg/1000)],['Outbound',fmt(W.agg.out.q)+' in '+W.agg.out.n+' issue'+(W.agg.out.n===1?'':'s')],['Outbound weight (tons)',fmt(W.agg.out.kg/1000)],['Net weight change (tons)',fmt((W.agg.in.kg-W.agg.out.kg)/1000)]];
+  }else if(key==='low'){
+    const a=items.filter(x=>num(x.stock)>0&&num(x.reorder)>0&&num(x.stock)<=num(x.reorder));
+    R.title='Low-stock items';
+    R.cols=['Item Code','Item','Location','Balance','Reorder level','Shortfall to reorder level','Unit','Last movement'];
+    R.num=[3,4,5];
+    R.rows=a.map(x=>{const t=db.transactions.filter(t=>t.itemId===x.id).sort(txSort).pop();return [x.code,x.name,x.location||'',num(x.stock),num(x.reorder),round(num(x.reorder)-num(x.stock)),x.unit||'',t?t.date:'']});
+    R.summary=[['Low-stock items',a.length]];
+  }else if(key==='out'){
+    const a=items.filter(x=>num(x.stock)<=0);
+    R.title='Out-of-stock items';
+    R.cols=['Item Code','Item','Location','Balance','Unit','Reorder level','Last movement'];
+    R.num=[3,5];
+    R.rows=a.map(x=>{const t=db.transactions.filter(t=>t.itemId===x.id).sort(txSort).pop();return [x.code,x.name,x.location||'',num(x.stock),x.unit||'',num(x.reorder),t?t.date:'']});
+    R.summary=[['Out-of-stock items',a.length]];
+  }else if(key==='expiry'){
+    const a=items.filter(x=>x.expiry&&num(x.stock)>0&&daysTo(x.expiry)<=90).sort((p,q)=>p.expiry.localeCompare(q.expiry));
+    R.title='Expiry alerts';
+    R.cols=['Item Code','Item','Location','Batch / Lot','Expiry date','Days left','Balance','Unit','Status'];
+    R.num=[5,6];
+    R.rows=a.map(x=>[x.code,x.name,x.location||'',x.batch||'',x.expiry,daysTo(x.expiry),num(x.stock),x.unit||'',statusText(x)]);
+    R.summary=[['Expired',a.filter(x=>daysTo(x.expiry)<0).length],['Expiring within 90 days',a.filter(x=>daysTo(x.expiry)>=0).length]];
+  }else if(key==='locations'){
+    const a=[...items].sort((p,q)=>(p.location||'~').localeCompare(q.location||'~')||String(p.code).localeCompare(String(q.code)));
+    R.title='Warehouse locations';
+    R.cols=['Location','Item Code','Item','Balance','Unit','Weight (tons)','Status'];
+    R.num=[3,5];
+    R.rows=a.map(x=>[x.location||'(No location set)',x.code,x.name,num(x.stock),x.unit||'',tons(x),statusText(x)]);
+    const locs=new Set(items.map(x=>(x.location||'').trim()).filter(Boolean));
+    R.summary=[['Locations',locs.size],['Items',items.length],['Items with no location',items.filter(x=>!(x.location||'').trim()).length]];
+  }else{
+    const type=key==='inbound'?'INBOUND':'OUTBOUND';
+    const a=db.transactions.filter(t=>t.type===type&&(m==='ALL'||(t.date&&t.date.startsWith(m)))).sort(txSort);
+    R.title=type==='INBOUND'?'Total inbound':'Total outbound / dispatch';
+    R.cols=['Date','Item Code','Item','Quantity','Unit','Weight (kg)','Document Ref','PO#','Supplier / Recipient','Location','Vehicle Type','Plate Number','Trucking Cost','Demurrage','Expiry','Remarks'];
+    R.num=[3,5,12,13];
+    R.rows=a.map(t=>{const x=itemById(t.itemId);return [t.date,itemCode(t.itemId),itemName(t.itemId),num(t.qty),x?.unit||'',round(txKg(t)),t.ref||'',t.po||'',t.party||'',t.location||'',t.vehicleType||'',t.plateNumber||'',num(t.truckingCost),num(t.demurrage),t.expiry||'',t.notes||'']});
+    const q=a.reduce((s,t)=>s+num(t.qty),0),kg=a.reduce((s,t)=>s+txKg(t),0);
+    R.total=['','','TOTAL',round(q),'',round(kg),'','','','','','',round(a.reduce((s,t)=>s+num(t.truckingCost),0)),round(a.reduce((s,t)=>s+num(t.demurrage),0)),'',''];
+    R.summary=[['Movements',a.length],['Total quantity',fmt(q)],['Total weight (tons)',fmt(kg/1000)],['Trucking + demurrage',fmt(a.reduce((s,t)=>s+num(t.truckingCost)+num(t.demurrage),0))]];
+  }
+  return R;
+}
+function openCardDetail(key){
+  const R=buildCardReport(key);cardRpt=R;
+  document.getElementById('cardTitle').textContent=R.title;
+  document.getElementById('cardSub').textContent='Period: '+R.period+' · '+R.rows.length+' record'+(R.rows.length===1?'':'s');
+  document.getElementById('cardSummary').innerHTML=R.summary.map(s=>`<div class="detail-field"><span class="detail-label">${esc(s[0])}</span><span class="detail-value">${esc(s[1])}</span></div>`).join('');
+  document.getElementById('cardHead').innerHTML='<tr>'+R.cols.map((c,i)=>`<th class="${R.num.includes(i)?'r':''}">${esc(c)}</th>`).join('')+'</tr>';
+  const cell=(v,i)=>`<td class="${R.num.includes(i)?'r':''}">${typeof v==='number'?fmt(v):esc(v===''?'—':v)}</td>`;
+  let html=R.rows.map(r=>'<tr>'+r.map(cell).join('')+'</tr>').join('');
+  if(R.total)html+='<tr class="total-row">'+R.total.map((v,i)=>R.num.includes(i)||v!==''?cell(v,i):'<td></td>').join('')+'</tr>';
+  document.getElementById('cardBody').innerHTML=html||`<tr><td colspan="${R.cols.length}" class="empty">Nothing to show for this card.</td></tr>`;
+  document.getElementById('cardModal').classList.add('open');
+}
+function closeCardDetail(){document.getElementById('cardModal').classList.remove('open')}
+function cardFileBase(){return 'dashboard-'+cardRpt.key+'-'+(document.getElementById('dashMonthFilter')?.value||'ALL')+'-'+today()}
+function cardMatrix(){
+  const R=cardRpt;
+  return [[R.title],['Period',R.period],['Generated',R.generated],...R.summary,[],R.cols,...R.rows,...(R.total?[R.total]:[])];
+}
+function downloadCardCSV(){if(!cardRpt)return;download(cardFileBase()+'.csv',csv(cardMatrix()),'text/csv');toast('Report downloaded.')}
+function downloadCardExcel(){
+  if(!cardRpt)return;
+  if(!window.XLSX||!XLSX.utils)return toast('Excel library not loaded (check internet). Use Download CSV instead.',true);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cardMatrix()),'Report');
+  XLSX.writeFile(wb,cardFileBase()+'.xlsx');toast('Report downloaded.');
+}
+
+/* ====== ITEM DETAIL MODAL ====== */
+let detailId=null;
+function showItemDetail(id){
+  const x=itemById(id);if(!x)return;
+  detailId=id;
+  const txs=db.transactions.filter(t=>t.itemId===id).sort((a,b)=>txSort(b,a));
+  const w=wtTons(x,x.stock);
+  document.getElementById('detailTitle').textContent=x.name;
+  document.getElementById('detailStatus').innerHTML=`<span class="code" style="margin-right:8px">${esc(x.code)}</span>`+statusPill(x);
+  document.getElementById('detailGrid').innerHTML=`
+    <div class="detail-field"><span class="detail-label">Category</span><span class="detail-value">${esc(x.category||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Storage Location</span><span class="detail-value">${esc(x.location||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">PO#</span><span class="detail-value">${esc(itemPO(id)||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Unit</span><span class="detail-value">${esc(x.unit||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Batch / Lot</span><span class="detail-value">${esc(x.batch||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Expiry Date</span><span class="detail-value">${esc(x.expiry||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Date Recorded</span><span class="detail-value">${esc(x.date||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Opening Balance</span><span class="detail-value">${fmt(x.opening)}</span></div>
+    <div class="detail-field"><span class="detail-label">Received</span><span class="detail-value" style="color:#16877b">+${fmt(x.received)}</span></div>
+    <div class="detail-field"><span class="detail-label">Issued / Dispatched</span><span class="detail-value" style="color:#c0392b">−${fmt(x.dispatched)}</span></div>
+    <div class="detail-field"><span class="detail-label">Adjustments</span><span class="detail-value">${num(x.adjusted)>0?'+':''}${fmt(x.adjusted)}</span></div>
+    <div class="detail-field"><span class="detail-label">Current Balance</span><span class="detail-value">${fmt(x.stock)} ${esc(x.unit||'')}</span></div>
+    <div class="detail-field"><span class="detail-label">Weight per Unit</span><span class="detail-value">${fmt(x.weight)} kg</span></div>
+    <div class="detail-field"><span class="detail-label">Total Weight</span><span class="detail-value">${w>0?fmt(w)+' tons':'—'}</span></div>
+    <div class="detail-field"><span class="detail-label">Dimensions (cm)</span><span class="detail-value">${esc(x.dimensions||'—')}</span></div>
+    <div class="detail-field"><span class="detail-label">Reorder Level</span><span class="detail-value">${fmt(x.reorder)}</span></div>
+    ${(x.vehicleType||x.plateNumber||num(x.truckingCost)||num(x.demurrage))?`<div class="detail-field full"><span class="detail-label">Earlier shipment details (recorded before upgrade)</span><span class="detail-value" style="font-weight:400">${esc(x.vehicleType||'—')} · ${esc(x.plateNumber||'—')} · Trucking ${fmt(x.truckingCost)} · Demurrage ${fmt(x.demurrage)}</span></div>`:''}
+    <div class="detail-field full"><span class="detail-label">Description</span><span class="detail-value" style="font-weight:400">${esc(x.notes||'—')}</span></div>
+    <div class="detail-field full"><span class="detail-label">Recent Movements (${txs.length})</span><span class="detail-value" style="font-weight:400">${txs.length?txs.slice(0,5).map(t=>`<div style="margin-bottom:4px"><b>${esc(t.date)}</b> &middot; ${typePill(t.type)} &middot; ${fmt(t.qty)} &middot; ${esc(t.ref||'')}</div>`).join(''):'No movements recorded'}</span></div>
+  `;
+  document.getElementById('itemDetailModal').classList.add('open');
+}
+function closeItemDetail(){document.getElementById('itemDetailModal').classList.remove('open')}
+function editFromDetail(){const id=detailId;closeItemDetail();editItem(id)}
+function ledgerFromDetail(){const id=detailId;closeItemDetail();openLedger(id)}
+function openLedger(id){ledgerSelId=id;showTab('ledger')}
+
+/* ====== ITEMS ====== */
+function toggleForm(){
+  const f=document.getElementById('itemForm');
+  if(f.style.display==='none'){resetItemForm();f.style.display='grid'}
+  else{f.style.display='none'}
+}
+function getFilteredItems(){
+  const q=(document.getElementById('itemSearch')?.value||'').toLowerCase();
+  const mFilter=document.getElementById('itemMonthFilter')?.value||'ALL';
+  return db.items.filter(x=>(x.code+' '+x.name+' '+x.category+' '+(x.notes||'')+' '+(x.location||'')+' '+(x.batch||'')+' '+itemPO(x.id)).toLowerCase().includes(q))
+    .filter(x=>mFilter==='ALL'||(x.date&&x.date.startsWith(mFilter)));
+}
+function renderItems(){
+  populateMonthFilters();
+  const arr=getFilteredItems();
+  document.getElementById('itemsBody').innerHTML=arr.map(x=>`<tr style="cursor:pointer" onclick="showItemDetail('${x.id}')"><td onclick="event.stopPropagation()"><input type="checkbox" class="item-cb" value="${x.id}" onclick="updateItemSelectAll()"></td><td class="code">${esc(x.code)}</td><td><b>${esc(x.name)}</b>${x.notes?'<br><span class="muted" style="font-size:11px">'+esc(x.notes)+'</span>':''}</td><td>${esc(x.category)}</td><td>${esc(x.location||'—')}</td><td>${esc(itemPO(x.id))||'—'}</td><td>${esc(x.batch||'—')}</td><td>${esc(x.expiry||'—')}</td><td class="r">${fmt(x.opening)}</td><td class="r">${fmt(x.received)}</td><td class="r">${fmt(x.dispatched)}</td><td class="r">${num(x.adjusted)?(num(x.adjusted)>0?'+':'')+fmt(x.adjusted):'—'}</td><td class="r"><b>${fmt(x.stock)}</b></td><td>${esc(x.unit)}</td><td class="r">${fmt(x.weight)}</td><td>${esc(x.dimensions||'—')}</td><td class="r">${fmt(x.reorder)}</td><td>${esc(x.date)}</td><td>${statusPill(x)}</td><td><div class="actions" onclick="event.stopPropagation()"><button class="secondary" onclick="event.stopPropagation();openLedger('${x.id}')">Card</button><button class="secondary" onclick="event.stopPropagation();editItem('${x.id}')">Edit</button><button class="danger" onclick="event.stopPropagation();deleteItem('${x.id}')">Delete</button></div></td></tr>`).join('')||'<tr><td colspan="20" class="empty">No items found.</td></tr>';
+}
+function resetItemForm(){
+  document.getElementById('itemForm').reset();
+  document.getElementById('editId').value='';
+  document.getElementById('itemCode').value='';
+  document.getElementById('itemStock').value=0;
+  document.getElementById('itemDispatched').value=0;
+  document.getElementById('itemReorder').value=0;
+  document.getElementById('itemWeight').value=0;
+  document.getElementById('itemDimensions').value='';
+  document.getElementById('itemUnit').value='pcs';
+  document.getElementById('itemPO').value='';
+  document.getElementById('itemLocation').value='';
+  document.getElementById('itemBatch').value='';
+  document.getElementById('itemExpiry').value='';
+  document.getElementById('itemDate').value=today();
+  document.getElementById('itemStock').disabled=false;
+  document.getElementById('itemDispatched').disabled=false;
+  document.getElementById('itemFormTitle').textContent='Add Inventory Item';
+}
+document.getElementById('itemForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=document.getElementById('editId').value;
+  const old=itemById(id);
+  const name=document.getElementById('itemName').value.trim();
+  if(!name)return toast('Please enter an item name.',true);
+  const code=document.getElementById('itemCode').value.trim()||(old?old.code:'ITM-'+pad(maxCodeNum(db.items)+1));
+  if(db.items.some(x=>x.id!==id&&(x.code||'').toLowerCase()===code.toLowerCase()))return toast('Item code '+code+' is already used by another item.',true);
+  const opening=old?num(old.opening):num(document.getElementById('itemStock').value);
+  const disp=old?0:num(document.getElementById('itemDispatched').value);
+  if(!old&&disp>opening)return toast('Dispatched quantity cannot exceed opening balance.',true);
+  const item=Object.assign({},old||{},{
+    id:id||uid(),
+    code:code,
+    name:name,
+    category:document.getElementById('itemCategory').value.trim()||'Relief Supplies',
+    location:document.getElementById('itemLocation').value.trim(),
+    po:document.getElementById('itemPO').value.trim(),
+    batch:document.getElementById('itemBatch').value.trim(),
+    expiry:document.getElementById('itemExpiry').value,
+    unit:document.getElementById('itemUnit').value.trim()||'pcs',
+    weight:num(document.getElementById('itemWeight').value),
+    dimensions:document.getElementById('itemDimensions').value.trim(),
+    opening:opening,
+    reorder:num(document.getElementById('itemReorder').value),
+    notes:document.getElementById('itemNotes').value.trim(),
+    date:document.getElementById('itemDate').value||today()
+  });
+  if(old){
+    db.items=db.items.map(x=>x.id===id?item:x);
+  }else{
+    db.items.push(item);
+    if(disp>0){
+      db.transactions.push({id:uid(),itemId:item.id,type:'OUTBOUND',qty:disp,date:item.date,ref:item.po||'Initial Dispatch',po:item.po,party:'',location:item.location,vehicleType:'',plateNumber:'',truckingCost:0,demurrage:0,notes:'Dispatched upon item creation',created:Date.now()});
+    }
+  }
+  saveDB();
+  resetItemForm();
+  document.getElementById('itemForm').style.display='none';
+  toast('Item saved successfully.');
+});
+function editItem(id){
+  const x=itemById(id);if(!x)return;
+  document.getElementById('editId').value=x.id;
+  document.getElementById('itemCode').value=x.code||'';
+  document.getElementById('itemName').value=x.name;
+  document.getElementById('itemCategory').value=x.category;
+  document.getElementById('itemUnit').value=x.unit;
+  document.getElementById('itemStock').value=x.opening;
+  document.getElementById('itemStock').disabled=true;
+  document.getElementById('itemDispatched').value=x.dispatched||0;
+  document.getElementById('itemDispatched').disabled=true;
+  document.getElementById('itemReorder').value=x.reorder;
+  document.getElementById('itemWeight').value=x.weight||0;
+  document.getElementById('itemDimensions').value=x.dimensions||'';
+  document.getElementById('itemNotes').value=x.notes||'';
+  document.getElementById('itemPO').value=x.po||itemPO(x.id)||'';
+  document.getElementById('itemLocation').value=x.location||'';
+  document.getElementById('itemBatch').value=x.batch||'';
+  document.getElementById('itemExpiry').value=x.expiry||'';
+  document.getElementById('itemDate').value=x.date;
+  document.getElementById('itemFormTitle').textContent='Edit Inventory Item (balance changes through Inbound / Outbound and Stock Count)';
+  document.getElementById('itemForm').style.display='grid';
+  showTab('items');
+}
+
+/* ====== PASSCODE / DELETE ====== */
+const PASSCODE_KEY='reliefInventory_passcode';
+function getPasscode(){return localStorage.getItem(PASSCODE_KEY)||'1234'}
+function setPasscode(p){localStorage.setItem(PASSCODE_KEY,p)}
+function verifyPasscode(action){
+  const entry=prompt('Enter passcode to '+action+':');
+  if(entry===null)return false;
+  if(entry!==getPasscode()){toast('Incorrect passcode. Action cancelled.',true);return false}
+  return true;
+}
+document.getElementById('passcodeForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const cur=document.getElementById('currentPasscode').value;
+  const np=document.getElementById('newPasscode').value;
+  const cp=document.getElementById('confirmPasscode').value;
+  if(cur!==getPasscode())return toast('Current passcode is incorrect.',true);
+  if(!np)return toast('New passcode cannot be empty.',true);
+  if(np!==cp)return toast('New passcodes do not match.',true);
+  setPasscode(np);
+  document.getElementById('passcodeForm').reset();
+  toast('Passcode updated successfully.');
+});
+function removeItems(ids){
+  ids.forEach(id=>{delete db.countDraft.counts[id]});
+  ids.forEach(id=>{const x=itemById(id);if(!x)return;const n=db.transactions.filter(t=>t.itemId===id).length;auditEntry(db,'DELETED_ITEM',x,num(x.stock),'','Item deleted together with '+n+' movement record'+(n===1?'':'s')+'. Balance at deletion '+fmt(x.stock)+' '+(x.unit||'')+' (opening '+fmt(x.opening)+'); location '+(x.location||'—')+'; PO# '+(itemPO(id)||'—')+'.')});
+  db.items=db.items.filter(x=>!ids.includes(x.id));
+  db.transactions=db.transactions.filter(t=>!ids.includes(t.itemId));
+  saveDB();
+}
+function deleteItem(id){
+  if(!verifyPasscode('delete this item and its movement history'))return;
+  removeItems([id]);
+  toast('Item and its movement history deleted.');
+}
+function removeAllItems(){
+  if(!verifyPasscode('remove all items and movement history'))return;
+  removeItems(db.items.map(x=>x.id));toast('All items and movements removed.');
+}
+function selectedIds(cls){return [...document.querySelectorAll('.'+cls+':checked')].map(c=>c.value)}
+function deleteSelectedItems(){
+  const ids=selectedIds('item-cb');
+  if(ids.length===0)return toast('No items selected.',true);
+  if(!verifyPasscode('delete '+ids.length+' selected item'+(ids.length>1?'s':'')+' and their movement history'))return;
+  removeItems(ids);
+  toast(ids.length+' item'+(ids.length>1?'s':'')+' deleted.');
+}
+/* Deleting movements recalculates balances; warn if any balance would go negative */
+function deleteTxIds(ids){
+  const gone=db.transactions.filter(t=>ids.includes(t.id));
+  const keep=db.transactions.filter(t=>!ids.includes(t.id));
+  const affected=[...new Set(gone.map(t=>t.itemId))];
+  const negative=affected.map(itemById).filter(Boolean).filter(x=>{
+    let b=num(x.opening);keep.filter(t=>t.itemId===x.id).forEach(t=>{b+=signedQty(t)});
+    return round(b)<0;
+  });
+  if(negative.length&&!confirm('Deleting this will leave a negative balance for: '+negative.map(x=>x.name).join(', ')+'. Continue?'))return false;
+  gone.forEach(t=>{const x=itemById(t.itemId);auditEntry(db,'DELETED_TRANSACTION',x,signedQty(t),t.ref||'',t.type+' of '+fmt(t.qty)+' '+(x?.unit||'')+' dated '+t.date+(t.po?' · PO# '+t.po:'')+(t.party?' · '+t.party:'')+(t.notes?' · '+t.notes:''))});
+  db.transactions=keep;
+  saveDB();
+  return true;
+}
+function deleteTransaction(id){
+  if(!db.transactions.some(t=>t.id===id))return;
+  if(!verifyPasscode('delete this transaction'))return;
+  if(deleteTxIds([id]))toast('Transaction deleted. Balance recalculated.');
+}
+function toggleAllItems(cb){document.querySelectorAll('.item-cb').forEach(c=>c.checked=cb.checked)}
+function updateItemSelectAll(){const cbs=document.querySelectorAll('.item-cb');const all=document.getElementById('itemSelectAll');if(all)all.checked=cbs.length>0&&[...cbs].every(c=>c.checked)}
+function toggleAllTx(cb){document.querySelectorAll('.tx-cb').forEach(c=>c.checked=cb.checked)}
+function updateTxSelectAll(){const cbs=document.querySelectorAll('.tx-cb');const all=document.getElementById('txSelectAll');if(all)all.checked=cbs.length>0&&[...cbs].every(c=>c.checked)}
+function deleteSelectedTx(){
+  const ids=selectedIds('tx-cb');
+  if(ids.length===0)return toast('No transactions selected.',true);
+  if(!verifyPasscode('delete '+ids.length+' selected transaction'+(ids.length>1?'s':'')))return;
+  if(deleteTxIds(ids))toast(ids.length+' transaction'+(ids.length>1?'s':'')+' deleted. Balance recalculated.');
+}
+function toggleAllReportItems(cb){document.querySelectorAll('.report-item-cb').forEach(c=>c.checked=cb.checked)}
+function updateReportItemSelectAll(){const cbs=document.querySelectorAll('.report-item-cb');const all=document.getElementById('reportItemSelectAll');if(all)all.checked=cbs.length>0&&[...cbs].every(c=>c.checked)}
+function toggleAllReportTx(cb){document.querySelectorAll('.report-tx-cb').forEach(c=>c.checked=cb.checked)}
+function updateReportTxSelectAll(){const cbs=document.querySelectorAll('.report-tx-cb');const all=document.getElementById('reportTxSelectAll');if(all)all.checked=cbs.length>0&&[...cbs].every(c=>c.checked)}
+function deleteSelectedReportItems(){
+  const ids=selectedIds('report-item-cb');
+  if(ids.length===0)return toast('No items selected.',true);
+  if(!verifyPasscode('delete '+ids.length+' selected item'+(ids.length>1?'s':'')+' and their movement history'))return;
+  removeItems(ids);
+  toast(ids.length+' item'+(ids.length>1?'s':'')+' deleted.');
+}
+function deleteSelectedReportTx(){
+  const ids=selectedIds('report-tx-cb');
+  if(ids.length===0)return toast('No transactions selected.',true);
+  if(!verifyPasscode('delete '+ids.length+' selected transaction'+(ids.length>1?'s':'')))return;
+  if(deleteTxIds(ids))toast(ids.length+' transaction'+(ids.length>1?'s':'')+' deleted. Balance recalculated.');
+}
+
+/* ====== TRANSACTIONS ====== */
+function renderSelect(){
+  const s=document.getElementById('txItem'),old=s.value;
+  s.innerHTML=db.items.map(x=>`<option value="${x.id}">${esc(x.code)} – ${esc(x.name)} (${fmt(x.stock)} ${esc(x.unit)})</option>`).join('')||'<option value="">No items available</option>';
+  if(db.items.some(x=>x.id===old))s.value=old;
+}
+/* movement weight: auto = quantity x item weight per unit (kg); the user may overwrite it, e.g. with a weighbridge figure */
+function autoWeight(){
+  const w=document.getElementById('txWeight');
+  if(w.dataset.manual==='1')return;
+  const x=itemById(document.getElementById('txItem').value);
+  const q=num(document.getElementById('txQty').value);
+  w.value=(x&&q>0&&num(x.weight)>0)?Math.round(q*num(x.weight)*1000)/1000:'';
+}
+function txKg(t){
+  if(t.type==='ADJUSTMENT')return 0;
+  return num(t.weight)>0?num(t.weight):num(t.qty)*num(itemById(t.itemId)?.weight);
+}
+document.getElementById('txQty').addEventListener('input',autoWeight);
+document.getElementById('txWeight').addEventListener('input',e=>{if(e.target.value==='')delete e.target.dataset.manual;else e.target.dataset.manual='1'});
+document.getElementById('txItem').addEventListener('change',()=>{
+  autoWeight();
+  const x=itemById(document.getElementById('txItem').value);if(!x)return;
+  const po=document.getElementById('txPO'),loc=document.getElementById('txLocation');
+  if(!po.value)po.value=itemPO(x.id)||'';
+  if(!loc.value)loc.value=x.location||'';
+});
+function renderTransactions(){
+  populateMonthFilters();
+  const mFilter=document.getElementById('txMonthFilter')?.value||'ALL';
+  const f=document.getElementById('txFilter')?.value||'ALL';
+  const q=(document.getElementById('txSearch')?.value||'').trim().toLowerCase();
+  const arr=[...db.transactions].filter(t=>{
+    const mm=mFilter==='ALL'||(t.date&&t.date.startsWith(mFilter));
+    const tt=f==='ALL'||t.type===f;
+    const qq=!q||[t.date,t.type,itemCode(t.itemId),itemName(t.itemId),t.qty,t.ref,t.po,t.party,t.location,t.vehicleType,t.plateNumber,t.expiry,t.notes].join(' ').toLowerCase().includes(q);
+    return mm&&tt&&qq;
+  }).sort((a,b)=>txSort(b,a));
+  document.getElementById('txBody').innerHTML=arr.map(t=>`<tr><td><input type="checkbox" class="tx-cb" value="${t.id}" onclick="updateTxSelectAll()"></td><td>${esc(t.date)}</td><td>${typePill(t.type)}</td><td class="code">${esc(itemCode(t.itemId))}</td><td>${esc(itemName(t.itemId))}</td><td class="r">${t.type==='ADJUSTMENT'&&num(t.qty)>0?'+':''}${fmt(t.qty)}</td><td class="r">${txKg(t)>0?fmt(txKg(t)):'—'}</td><td>${esc(t.ref||'')}</td><td>${esc(t.po||'—')}</td><td>${esc(t.party||'—')}</td><td>${esc(t.location||'—')}</td><td>${esc(t.vehicleType||'—')}</td><td>${esc(t.plateNumber||'—')}</td><td class="r">${num(t.truckingCost)>0?fmt(t.truckingCost):'—'}</td><td class="r">${num(t.demurrage)>0?fmt(t.demurrage):'—'}</td><td>${esc(t.expiry||'—')}</td><td>${esc(t.notes||'')}</td><td><div class="actions"><button class="danger" onclick="deleteTransaction('${t.id}')">Delete</button></div></td></tr>`).join('')||'<tr><td colspan="18" class="empty">No transactions found for this period.</td></tr>';
+}
+document.getElementById('txDate').value=today();
+document.getElementById('txForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=document.getElementById('txItem').value,item=itemById(id),qty=num(document.getElementById('txQty').value);
+  if(!item)return toast('Please add an inventory item first.',true);
+  if(!(qty>0))return toast('Enter a valid quantity.',true);
+  const type=document.getElementById('txType').value;
+  if(type==='OUTBOUND'&&qty>num(item.stock))return toast('Insufficient stock. Available: '+fmt(item.stock)+' '+item.unit,true);
+  db.transactions.push({
+    id:uid(),itemId:id,type,qty,
+    date:document.getElementById('txDate').value||today(),
+    ref:document.getElementById('txRef').value.trim(),
+    po:document.getElementById('txPO').value.trim(),
+    party:document.getElementById('txParty').value.trim(),
+    location:document.getElementById('txLocation').value.trim(),
+    vehicleType:document.getElementById('txVehicleType').value.trim(),
+    plateNumber:document.getElementById('txPlateNumber').value.trim(),
+    truckingCost:num(document.getElementById('txTruckingCost').value),
+    demurrage:num(document.getElementById('txDemurrage').value),
+    expiry:document.getElementById('txExpiry').value,
+    weight:num(document.getElementById('txWeight').value)||Math.round(qty*num(item.weight)*1000)/1000,
+    notes:document.getElementById('txNotes').value.trim(),
+    created:Date.now()
+  });
+  const txExp=document.getElementById('txExpiry').value;
+  if(type==='INBOUND'&&txExp&&!item.expiry)item.expiry=txExp;
+  saveDB();
+  document.getElementById('txForm').reset();
+  delete document.getElementById('txWeight').dataset.manual;
+  document.getElementById('txDate').value=today();
+  toast('Transaction saved successfully.');
+});
+
+/* ====== STOCK LEDGER VIEW ====== */
+function renderLedger(){
+  const sel=document.getElementById('ledgerItem');
+  const cur=ledgerSelId||sel.value;
+  sel.innerHTML=db.items.map(x=>`<option value="${x.id}">${esc(x.code)} – ${esc(x.name)}</option>`).join('')||'<option value="">No items available</option>';
+  if(db.items.some(x=>x.id===cur))sel.value=cur;
+  ledgerSelId=null;
+  const x=itemById(sel.value);
+  const sum=document.getElementById('ledgerSummary'),body=document.getElementById('ledgerBody');
+  if(!x){sum.innerHTML='<span class="muted">No item selected.</span>';body.innerHTML='<tr><td colspan="12" class="empty">No items available.</td></tr>';return}
+  const w=wtTons(x,x.stock);
+  const s=(l,v)=>`<div class="detail-field"><span class="detail-label">${l}</span><span class="detail-value">${v}</span></div>`;
+  sum.innerHTML=s('Item code',esc(x.code))+s('Item',esc(x.name))+s('Category',esc(x.category||'—'))+s('Status',statusPill(x))
+    +s('Storage location',esc(x.location||'—'))+s('Unit',esc(x.unit||'—'))+s('Reorder level',fmt(x.reorder))+s('Current balance',fmt(x.stock)+' '+esc(x.unit||'')+(w>0?' · '+fmt(w)+' tons':''));
+  const lines=ledgerFor(x);
+  let rows=lines.map(l=>{
+    if(l.type==='OPENING')return `<tr class="open-row"><td>${esc(l.date)}</td><td><span class="pill open">OPENING</span></td><td>Opening balance</td><td></td><td></td><td></td><td></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"><b>${fmt(l.bal)}</b></td><td></td></tr>`;
+    const t=l.t;
+    return `<tr><td>${esc(l.date)}</td><td>${typePill(t.type)}</td><td>${esc(t.ref||'—')}</td><td>${esc(t.po||'—')}</td><td>${esc(t.party||'—')}</td><td>${esc(t.location||'—')}</td><td>${esc(t.expiry||'—')}</td><td class="r" style="color:#16877b">${l.in?'+'+fmt(l.in):''}</td><td class="r" style="color:#c0392b">${l.out?'−'+fmt(l.out):''}</td><td class="r">${l.adj?(l.adj>0?'+':'')+fmt(l.adj):''}</td><td class="r"><b>${fmt(l.bal)}</b></td><td>${esc(t.notes||'')}</td></tr>`;
+  }).join('');
+  rows+=`<tr class="total-row"><td colspan="7">Totals / Closing balance</td><td class="r">${fmt(x.received)}</td><td class="r">${fmt(x.dispatched)}</td><td class="r">${fmt(x.adjusted)}</td><td class="r">${fmt(x.stock)}</td><td></td></tr>`;
+  body.innerHTML=rows;
+}
+function exportLedgerCSV(){
+  const x=itemById(document.getElementById('ledgerItem').value);
+  if(!x)return toast('No item selected.',true);
+  const rows=[['Stock Card'],['Item code',x.code],['Item',x.name],['Unit',x.unit],['Location',x.location||''],[],['Date','Type','Document Ref','PO#','Supplier / Recipient','Location','Expiry','Received','Issued','Adjustment','Balance','Remarks']];
+  ledgerFor(x).forEach(l=>{
+    if(l.type==='OPENING')rows.push([l.date,'OPENING','Opening balance','','','','','','','',l.bal,'']);
+    else{const t=l.t;rows.push([l.date,t.type,t.ref||'',t.po||'',t.party||'',t.location||'',t.expiry||'',l.in||'',l.out||'',l.adj||'',l.bal,t.notes||''])}
+  });
+  download('stock-card-'+x.code+'.csv',csv(rows),'text/csv');
+}
+
+/* ====== AUDIT LOG (passcode protected) ====== */
+const AUDIT_LABEL={DELETED_ITEM:'Item deleted',DELETED_TRANSACTION:'Transaction deleted',ADJUSTMENT:'Adjustment'};
+function auditRows(){
+  const f=document.getElementById('auditFilter')?.value||'ALL';
+  const q=(document.getElementById('auditSearch')?.value||'').trim().toLowerCase();
+  return [...db.audit].filter(a=>f==='ALL'||a.action===f||(f==='DELETED'&&String(a.action).startsWith('DELETED')))
+    .filter(a=>!q||[a.itemCode,a.itemName,a.ref,a.detail,AUDIT_LABEL[a.action],a.ts].join(' ').toLowerCase().includes(q))
+    .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+}
+function renderAudit(){
+  const body=document.getElementById('auditBody'),sum=document.getElementById('auditSummary');
+  if(!body)return;
+  if(!auditUnlocked){body.innerHTML='';sum.innerHTML='';return}
+  const rows=auditRows();
+  const c=k=>db.audit.filter(a=>a.action===k).length;
+  const s=(l,v)=>`<div class="detail-field"><span class="detail-label">${l}</span><span class="detail-value">${v}</span></div>`;
+  sum.innerHTML=s('Total records',db.audit.length)+s('Items deleted',c('DELETED_ITEM'))+s('Transactions deleted',c('DELETED_TRANSACTION'))+s('Adjustments',c('ADJUSTMENT'));
+  body.innerHTML=rows.map(a=>{
+    const cls=a.action==='ADJUSTMENT'?'adj':'out';
+    const q=a.qty===''||a.qty==null?'—':((num(a.qty)>0&&a.action!=='DELETED_ITEM'?'+':'')+fmt(a.qty));
+    return `<tr><td>${esc(new Date(a.ts).toLocaleString())}</td><td><span class="pill ${cls}">${esc(AUDIT_LABEL[a.action]||a.action)}</span></td><td class="code">${esc(a.itemCode||'—')}</td><td><b>${esc(a.itemName)}</b></td><td class="r">${q}</td><td>${esc(a.ref||'—')}</td><td>${esc(a.detail||'')}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">No audit records match.</td></tr>';
+}
+function exportAuditCSV(){
+  if(!auditUnlocked)return;
+  download('audit-log-'+today()+'.csv',csv([['Date & Time','Action','Item Code','Item','Qty / Variance','Reference','Details'],...auditRows().map(a=>[a.ts,AUDIT_LABEL[a.action]||a.action,a.itemCode,a.itemName,a.qty,a.ref,a.detail])]),'text/csv');
+}
+
+/* ====== STOCK COUNT ====== */
+function saveDraft(){
+  db.countDraft.updated=Date.now();
+  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('Could not save the count draft: browser storage is full or blocked.',true)}
+  renderCountInfo();
+}
+function renderCountInfo(){
+  const el=document.getElementById('countDraftInfo');if(!el)return;
+  const dr=db.countDraft,n=Object.keys(dr.counts).length;
+  el.innerHTML=n?`<b>Draft saved automatically</b> on this device — ${n} of ${db.items.length} item${db.items.length===1?'':'s'} counted`+(dr.updated?` · last saved ${esc(new Date(dr.updated).toLocaleString())}`:'')+`. It stays here after closing the app. A supervisor can review it and press <b>Post Variances</b> (passcode required).`:'No count in progress. Numbers typed below are saved automatically and wait here until a supervisor posts them.';
+}
+function saveCountMeta(){
+  db.countDraft.date=document.getElementById('countDate').value;
+  db.countDraft.ref=document.getElementById('countRef').value;
+  saveDraft();
+}
+function renderCount(){
+  const dr=db.countDraft;
+  document.getElementById('countBody').innerHTML=db.items.map(x=>{
+    const c=dr.counts[x.id];
+    const sys=c?num(c.sys):num(x.stock);
+    const v=c?round(num(c.v)-sys):null;
+    const changed=c&&round(sys)!==round(x.stock);
+    return `<tr><td class="code">${esc(x.code)}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.location||'—')}</td><td>${esc(x.unit)}</td><td class="r">${fmt(x.stock)}${changed?'<div class="muted" style="font-size:11px">was '+fmt(sys)+' when counted</div>':''}</td><td><input type="number" step="0.01" min="0" class="count-in" data-id="${x.id}" value="${c?esc(c.v):''}" oninput="onCountInput(this)" style="width:120px"></td><td class="r" id="var-${x.id}" style="color:${v<0?'#c0392b':(v>0?'#16877b':'')}">${v==null?'—':(v>0?'+':'')+fmt(v)}</td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">No items to count.</td></tr>';
+  const cd=document.getElementById('countDate'),cr=document.getElementById('countRef');
+  if(document.activeElement!==cd)cd.value=dr.date||today();
+  if(document.activeElement!==cr)cr.value=dr.ref||'';
+  renderCountInfo();
+}
+function onCountInput(inp){
+  const id=inp.dataset.id,x=itemById(id);if(!x)return;
+  const cell=document.getElementById('var-'+id);
+  if(inp.value===''||isNaN(Number(inp.value))){
+    delete db.countDraft.counts[id];
+    cell.textContent='—';cell.style.color='';
+  }else{
+    const prev=db.countDraft.counts[id];
+    const sys=prev?num(prev.sys):num(x.stock);   // balance when this item was first counted
+    db.countDraft.counts[id]={v:Number(inp.value),sys:sys,at:Date.now()};
+    const v=round(Number(inp.value)-sys);
+    cell.textContent=(v>0?'+':'')+fmt(v);
+    cell.style.color=v<0?'#c0392b':(v>0?'#16877b':'');
+  }
+  saveDraft();
+}
+function clearCountDraft(){
+  if(!Object.keys(db.countDraft.counts).length&&!db.countDraft.ref)return toast('There is no count draft to clear.',true);
+  if(!confirm('Clear all physical counts typed so far? This cannot be undone.'))return;
+  db.countDraft={date:'',ref:'',counts:{}};
+  saveDB();toast('Count draft cleared.');
+}
+function postCount(){
+  const dr=db.countDraft;
+  const date=document.getElementById('countDate').value||today();
+  const ref=document.getElementById('countRef').value.trim()||'Physical Count';
+  const entries=Object.entries(dr.counts).filter(([id])=>itemById(id));
+  if(!entries.length)return toast('No physical counts entered yet.',true);
+  const rows=entries.map(([id,c])=>({id,sys:num(c.sys),phys:num(c.v),v:round(num(c.v)-num(c.sys))})).filter(r=>r.v!==0);
+  if(!rows.length)return toast('All '+entries.length+' counted item'+(entries.length>1?'s match':' matches')+' the system balance. No adjustment needed.',true);
+  if(!verifyPasscode('post '+rows.length+' stock count adjustment'+(rows.length>1?'s':'')))return;
+  rows.forEach((r,k)=>{
+    const x=itemById(r.id);
+    db.transactions.push({id:uid(),itemId:r.id,type:'ADJUSTMENT',qty:r.v,date:date,ref:ref,po:'',party:'',location:x?.location||'',vehicleType:'',plateNumber:'',truckingCost:0,demurrage:0,notes:'Physical count adjustment',created:Date.now()+k});
+    auditEntry(db,'ADJUSTMENT',x,r.v,ref,'Physical count on '+date+': system balance '+fmt(r.sys)+' → physical '+fmt(r.phys)+' '+(x?.unit||'')+'.');
+  });
+  db.countDraft={date:'',ref:'',counts:{}};
+  saveDB();
+  toast(rows.length+' adjustment'+(rows.length>1?'s':'')+' posted to the stock ledger. Count draft cleared.');
+}
+function exportCountSheet(){
+  const rows=[['Item Code','Item','Location','Unit','System Balance','Physical Count','Variance'],...db.items.map(x=>[x.code,x.name,x.location||'',x.unit,x.stock,'',''])];
+  download('stock-count-sheet-'+today()+'.csv',csv(rows),'text/csv');
+}
+
+/* ====== REPORTS ====== */
+function renderReports(){
+  populateMonthFilters();
+  const m=document.getElementById('reportMonthFilter')?.value||'ALL';
+  const filteredTx=db.transactions.filter(t=>m==='ALL'||(t.date&&t.date.startsWith(m)));
+  const rowsData=db.items.filter(x=>m==='ALL'||String(x.date||'').slice(0,7)<=m).map(x=>{
+    let open=num(x.opening),i=0,o=0,a=0;
+    db.transactions.forEach(t=>{
+      if(t.itemId!==x.id)return;
+      const q=num(t.qty);
+      if(m==='ALL'){if(t.type==='INBOUND')i+=q;else if(t.type==='OUTBOUND')o+=q;else a+=q;return}
+      const tm=String(t.date||'').slice(0,7);
+      if(tm<m){open+=signedQty(t)}
+      else if(tm===m){if(t.type==='INBOUND')i+=q;else if(t.type==='OUTBOUND')o+=q;else a+=q}
+    });
+    return {x,open:round(open),i:round(i),o:round(o),a:round(a),close:round(open+i-o+a)};
+  });
+  document.getElementById('reportBody').innerHTML=rowsData.map(r=>{
+    const x=r.x,w=wtTons(x,r.close);
+    return `<tr><td><input type="checkbox" class="report-item-cb" value="${x.id}" onclick="updateReportItemSelectAll()"></td><td class="code">${esc(x.code)}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.category)}</td><td>${esc(x.location||'—')}</td><td>${esc(itemPO(x.id))||'—'}</td><td>${esc(x.date)}</td><td class="r">${fmt(r.open)}</td><td class="r" style="color:#16877b">+${fmt(r.i)}</td><td class="r" style="color:#c0392b">−${fmt(r.o)}</td><td class="r">${r.a?(r.a>0?'+':'')+fmt(r.a):'—'}</td><td class="r"><b>${fmt(r.close)}</b></td><td>${esc(x.unit)}</td><td class="r">${w>0?fmt(w):'—'}</td><td>${statusPill(x,r.close)}</td></tr>`;
+  }).join('')||'<tr><td colspan="15" class="empty">No data available.</td></tr>';
+  document.getElementById('movementDetailTitle').textContent=m==='ALL'?'Movement Detail':'Movement Detail — '+monthLabel(m);
+  document.getElementById('reportTxBody').innerHTML=[...filteredTx].sort((a,b)=>txSort(b,a)).map(t=>`<tr><td><input type="checkbox" class="report-tx-cb" value="${t.id}" onclick="updateReportTxSelectAll()"></td><td>${esc(t.date)}</td><td>${typePill(t.type)}</td><td class="code">${esc(itemCode(t.itemId))}</td><td>${esc(itemName(t.itemId))}</td><td class="r">${t.type==='ADJUSTMENT'&&num(t.qty)>0?'+':''}${fmt(t.qty)}</td><td>${esc(t.ref||'')}</td><td>${esc(t.po||'—')}</td><td>${esc(t.party||'—')}</td><td>${esc(t.notes||'')}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">No transactions in this period.</td></tr>';
+}
+
+/* ====== RENDER ALL ====== */
+function renderAll(){renderAudit();renderHeader();renderDashboard();renderItems();renderTransactions();renderReports();renderSelect();renderLedger();renderCount()}
+
+/* ====== EXCEL IMPORT ====== */
+function parseXlDate(v){
+  if(v===''||v==null)return '';
+  if(typeof v==='number'){const d=new Date((v-(25567+2))*86400*1000);return isNaN(d)?'':d.toISOString().slice(0,10)}
+  const p=new Date(v);return isNaN(p)?'':p.toISOString().slice(0,10);
+}
+function importExcelInventory(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    try{
+      const data=new Uint8Array(evt.target.result);
+      const workbook=XLSX.read(data,{type:'array'});
+      const sheetName=workbook.SheetNames[0];
+      const worksheet=workbook.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(worksheet,{defval:''});
+      if(rows.length===0){toast('The uploaded file contains no rows.',true);return}
+      const existingNames=new Set(db.items.map(x=>x.name.trim().toLowerCase()));
+      const itemsMap={};const newTx=[];let txCount=0,skipCount=0;
+      let seq=maxCodeNum(db.items);
+      rows.forEach(row=>{
+        const name=row['Item Description']||row['Item Name']||row['Item']||row['Name']||row['ITEM']||'';
+        if(!name.toString().trim())return;
+        const location=row['Storage Location']||row['Location']||row['Storage']||'';
+        const unit=row['Unit Of Measure']||row['Unit']||row['UNIT']||'pcs';
+        const category=row['Category']||row['Name of response']||'Relief Supplies';
+        const itemNameFull=name.toString().trim()+(location?' - '+location.toString().trim():'');
+        const key=itemNameFull.trim().toLowerCase();
+        if(existingNames.has(key)||itemsMap[key]){skipCount++;return}
+        const phys=row['PHYSICAL INVENTORY'];
+        const openBal=num(row['Opening Balance']||row['Opening Stock']||row['Stock']||0);
+        const qtyRec=num(row['Quantity Received']||0);
+        const qtyDisp=num(row['Quantity Dispatched']||0);
+        const expected=openBal+qtyRec-qtyDisp;
+        const physNum=(phys!==''&&phys!==null&&!isNaN(Number(phys)))?Number(phys):null;
+        const weight=num(row['Weight per Unit (kg)']||row['Weight per Unit']||row['Weight (kg)']||row['Weight']||row['Unit Weight']||0);
+        const dimensions=String(row['Dimensions']||row['Size']||row['Dimension']||row['L×W×H']||row['Dimensions (cm)']||'').trim();
+        let txDate=parseXlDate(row['Date']);
+        if(!txDate&&row['Month']&&row['Year']){
+          const mNames={'January':1,'February':2,'March':3,'April':4,'May':5,'June':6,'July':7,'August':8,'September':9,'October':10,'November':11,'December':12};
+          const mNum=mNames[row['Month']]||1;const yNum=Number(row['Year'])||2016;
+          txDate=yNum+'-'+String(mNum).padStart(2,'0')+'-01';
+        }
+        if(!txDate)txDate=today();
+        const po=String(row['PO#']||'').trim();
+        const item={id:uid(),code:'ITM-'+pad(++seq),name:itemNameFull,category:category.toString().trim()||'Relief Supplies',location:location.toString().trim(),po:po,batch:String(row['Batch']||row['Lot']||row['Batch / Lot']||'').trim(),expiry:parseXlDate(row['Expiry Date']||row['Expiry']),opening:openBal,unit:unit.toString().trim()||'pcs',weight:weight,dimensions:dimensions,reorder:num(row['Reorder Level']||row['Reorder']||10)||10,notes:String(row['Notes']||row['REMARKS']||'').trim(),date:txDate};
+        itemsMap[key]=item;
+        const ship={vehicleType:String(row['Vehicle Type']||'').trim(),plateNumber:String(row['Plate Number']||'').trim(),truckingCost:num(row['Trucking Cost']),demurrage:num(row['Demurrage Charges']||row['Demurrage']),expiry:item.expiry||''};
+        const base={itemId:item.id,date:txDate,po:po,party:'',location:item.location,vehicleType:'',plateNumber:'',truckingCost:0,demurrage:0};
+        if(qtyRec>0){newTx.push(Object.assign({},base,ship,{id:uid(),type:'INBOUND',qty:qtyRec,ref:row['Receipt Note']||po||'Excel Upload',notes:row['REMARKS']||'Received at '+(location||'Warehouse'),created:Date.now()+txCount}));txCount++}
+        if(qtyDisp>0){newTx.push(Object.assign({},base,{id:uid(),type:'OUTBOUND',qty:qtyDisp,ref:row['BOL / Waybill #']||'Excel Dispatch',notes:row['REMARKS']||'Dispatched from '+(location||'Warehouse'),created:Date.now()+txCount}));txCount++}
+        if(physNum!==null&&Math.abs(physNum-expected)>0.004){newTx.push(Object.assign({},base,{id:uid(),type:'ADJUSTMENT',qty:round(physNum-expected),ref:'Physical Inventory',notes:'Reconciled to physical inventory count in uploaded file',created:Date.now()+txCount}));txCount++;auditEntry(db,'ADJUSTMENT',item,round(physNum-expected),'Physical Inventory','Excel upload: physical inventory '+fmt(physNum)+' vs expected '+fmt(expected)+'.')}
+      });
+      const newItems=Object.values(itemsMap);
+      if(newItems.length===0&&skipCount>0){toast('All '+skipCount+' items already exist. No duplicates were added.',true);e.target.value='';return}
+      if(newItems.length===0){toast('No valid inventory items found in the uploaded file.',true);e.target.value='';return}
+      db.items=db.items.concat(newItems);
+      db.transactions=db.transactions.concat(newTx);
+      saveDB();
+      let msg='Imported '+newItems.length+' items and '+txCount+' movements from Excel.';
+      if(skipCount>0)msg+=' Skipped '+skipCount+' duplicate item'+(skipCount>1?'s':'')+'.';
+      toast(msg);
+    }catch(err){console.error(err);toast('Error reading the Excel file. Please ensure it is a valid .xlsx or .xls file.',true)}
+    e.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ====== EXPORTS ====== */
+function download(name,content,type){const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}
+function downloadBackup(){
+  const backup={app:'WV HEA Inventory',version:3,exportedAt:new Date().toISOString(),data:db};
+  download('relief-inventory-backup-'+today()+'.json',JSON.stringify(backup,null,2),'application/json');
+  toast('Backup downloaded successfully.');
+}
+function restoreBackup(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    try{
+      const backup=JSON.parse(String(evt.target.result||''));
+      const restored=backup&&backup.data&&typeof backup.data==='object'?backup.data:backup;
+      if(!restored||!Array.isArray(restored.items)||!Array.isArray(restored.transactions))throw new Error('Invalid backup');
+      if(!confirm('Restore this backup? It will replace the inventory and transaction data currently saved in this browser.'))return;
+      const mergedAudit=[...db.audit];(Array.isArray(restored.audit)?restored.audit:[]).forEach(a=>{if(!mergedAudit.some(z=>z.id===a.id))mergedAudit.push(a)});
+      db=migrate({items:restored.items,transactions:restored.transactions,version:restored.version,audit:mergedAudit,countDraft:restored.countDraft});
+      auditEntry(db,'ADJUSTMENT',null,'','Backup restore','Data restored from a backup file ('+restored.items.length+' items, '+restored.transactions.length+' movements).');
+      saveDB();
+      toast('Backup restored successfully.');
+    }catch(err){toast('This is not a valid WV HEA Inventory backup file.',true)}
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+function csv(rows){return rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n')}
+const HISTORY_HEAD=['Date','Item Code','Item','Type','Document Ref','PO#','Supplier / Recipient','Location','Vehicle Type','Plate Number','Trucking Cost','Demurrage Charges','Expiry','Weight (kg)','Received','Issued','Adjustment','Balance','Remarks'];
+function historyRows(items,withOpening){
+  const out=[];
+  items.forEach(x=>{
+    ledgerFor(x).forEach(l=>{
+      if(l.type==='OPENING'){if(withOpening)out.push([l.date,x.code,x.name,'OPENING BALANCE','Opening balance',...Array(12).fill(''),l.bal,'']);return}
+      const t=l.t;
+      out.push([l.date,x.code,x.name,t.type,t.ref||'',t.po||'',t.party||'',t.location||'',t.vehicleType||'',t.plateNumber||'',t.truckingCost||0,t.demurrage||0,t.expiry||'',txKg(t)||'',l.in||'',l.out||'',l.adj||'',l.bal,t.notes||'']);
+    });
+  });
+  return out;
+}
+function itemExportRow(x){
+  const w=wtTons(x,x.stock);
+  return [x.code,x.name,x.category,x.location||'',itemPO(x.id),x.batch||'',x.expiry||'',x.opening,x.received,x.dispatched,x.adjusted,x.stock,x.unit,x.weight,w>0?Number(w.toFixed(3)):'',x.dimensions||'',x.reorder,x.date,x.notes||''];
+}
+const ITEM_HEAD=['Item Code','Item','Category','Location','PO#','Batch / Lot','Expiry','Opening Balance','Total Received','Total Issued','Adjustments','Balance','Unit','Weight per Unit (kg)','Total Weight (tons)','Dimensions','Reorder Level','Date','Description'];
+function exportItemsCSV(){
+  const items=getFilteredItems();
+  const rows=[ITEM_HEAD,...items.map(itemExportRow)];
+  rows.push([],['STOCK LEDGER — MOVEMENT HISTORY (INBOUND / OUTBOUND)'],HISTORY_HEAD,...historyRows(items,true));
+  download('inventory-report.csv',csv(rows),'text/csv');
+}
+function exportTransactionsCSV(){
+  const rows=historyRows(db.items,false).sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+  download('inventory-transactions.csv',csv([HISTORY_HEAD,...rows]),'text/csv');
+}
+function exportItemsExcel(){
+  const items=getFilteredItems();
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([ITEM_HEAD,...items.map(itemExportRow)]),'Inventory');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([HISTORY_HEAD,...historyRows(items,true)]),'Stock Ledger');
+  XLSX.writeFile(wb,'wv-inventory-report.xlsx');
+}
+
+/* ====== KEYBOARD SHORTCUTS ====== */
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){closeItemDetail();closeCardDetail()}
+  if((e.altKey&&e.key.toLowerCase()==='u')||(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='u')){e.preventDefault();document.getElementById('excelImportFileNav').click()}
+  if(e.altKey&&e.key.toLowerCase()==='d'){e.preventDefault();showTab('dashboard')}
+  if(e.altKey&&e.key.toLowerCase()==='i'){e.preventDefault();showTab('items')}
+  if(e.altKey&&e.key.toLowerCase()==='t'){e.preventDefault();showTab('transactions')}
+  if(e.altKey&&e.key.toLowerCase()==='l'){e.preventDefault();showTab('ledger')}
+  if(e.altKey&&e.key.toLowerCase()==='c'){e.preventDefault();showTab('count')}
+  if(e.altKey&&e.key.toLowerCase()==='r'){e.preventDefault();showTab('reports')}
+  if(e.altKey&&e.key.toLowerCase()==='a'){e.preventDefault();showTab('audit')}
+});
+
+/* ====== INIT ====== */
+document.getElementById('itemDate').value=today();
+document.getElementById('countDate').value=today();
+saveDB();
+</script>
+</body>
+</html>
