@@ -9,6 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <!-- SheetJS for Excel upload & parse -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- ExcelJS for the formatted summary report download -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
 :root{
   --navy:#14283f;--blue:#2364a5;--teal:#16877b;--bg:#f3f6fa;--ink:#1d2939;
@@ -281,7 +283,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}
     <div class="panel">
       <h2>Record Inventory Movement</h2>
       <form id="txForm" class="formgrid">
-        <div class="field"><label>Movement type *</label><select id="txType"><option value="INBOUND">Inbound / Receive</option><option value="OUTBOUND">Outbound / Issue</option></select></div>
+        <div class="field"><label>Movement type *</label><select id="txType"><option value="INBOUND">Inbound / Receive</option><option value="OUTBOUND">Outbound / Issue</option><option value="KITTING">Kitting (10-item kit entry)</option></select></div>
         <div class="field wide"><label>Item *</label><select id="txItem" required></select></div>
         <div class="field"><label>Quantity *</label><input id="txQty" type="number" min="0.01" step="0.01" required></div>
         <div class="field"><label>Date *</label><input id="txDate" type="date" required></div>
@@ -305,7 +307,7 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}
         <div class="toolbar">
           <input type="search" id="txSearch" placeholder="Search transactions..." oninput="renderTransactions()">
           <select id="txMonthFilter" onchange="renderTransactions()"><option value="ALL">All Months</option></select>
-          <select id="txFilter" onchange="renderTransactions()"><option value="ALL">All movements</option><option value="INBOUND">Inbound only</option><option value="OUTBOUND">Outbound only</option><option value="ADJUSTMENT">Adjustments only</option></select>
+          <select id="txFilter" onchange="renderTransactions()"><option value="ALL">All movements</option><option value="INBOUND">Inbound only</option><option value="OUTBOUND">Outbound only</option><option value="ADJUSTMENT">Adjustments only</option><option value="KITTING">Kitting only</option></select>
           <button class="secondary" onclick="exportTransactionsCSV()">Export CSV</button>
           <button class="danger" onclick="deleteSelectedTx()">Delete Selected</button>
         </div>
@@ -414,23 +416,30 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}
   <section id="reports" class="hidden">
     <div class="panel">
       <div class="panel-head">
-        <h2>Monthly Stock Movement Report</h2>
+        <h2>Inventory Summary Report</h2>
         <div class="toolbar">
-          <label style="margin:0;font-weight:700">Filter Report Month:</label>
-          <select id="reportMonthFilter" onchange="renderReports()" style="font-weight:600"><option value="ALL">All Months / Lifetime</option></select>
-          <button onclick="exportItemsCSV()">Download Inventory CSV</button>
-          <button class="secondary" onclick="exportTransactionsCSV()">Download Movement CSV</button>
-          <button class="secondary" onclick="window.print()">Print Report</button>
+          <label style="margin:0;font-weight:700">Year</label>
+          <select id="reportYearFilter" onchange="renderReports()" style="font-weight:600;min-width:90px"><option value="ALL">(All)</option></select>
+          <label style="margin:0;font-weight:700">Month</label>
+          <select id="reportMonthFilter" onchange="renderReports()" style="font-weight:600;min-width:120px"><option value="ALL">(All)</option></select>
+          <button class="green" onclick="exportReportExcel()">Download Report (Excel)</button>
+          <button class="secondary" onclick="exportItemsCSV()">Inventory CSV</button>
+          <button class="secondary" onclick="exportTransactionsCSV()">Movement CSV</button>
+          <button class="secondary" onclick="window.print()">Print</button>
         </div>
       </div>
-      <p class="muted" style="font-size:13px;margin-bottom:14px">Opening balance + Received − Issued ± Adjustments = Closing balance for the selected period. For "All Months" the opening balance is the item's original opening balance.</p>
+      <p class="muted" style="font-size:13px;margin-bottom:14px">Items are grouped by storage location with a subtotal per location and a Grand Total. Opening Balance + Received − Dispatched ± Adjustments = Closing balance for the selected period. <b>Latest Movement</b> is the item's most recent inbound, outbound or adjustment up to the end of the period. Click a location to collapse or expand it. Select a month by choosing a year first.</p>
       <div class="panel-head" style="margin-top:10px">
-        <span class="muted" style="font-size:12px">Use checkboxes to select items for deletion</span>
+        <div class="toolbar">
+          <button class="secondary" onclick="expandAllReport()">Expand all</button>
+          <button class="secondary" onclick="collapseAllReport()">Collapse all</button>
+          <span class="muted" style="font-size:12px">Use checkboxes to select items for deletion</span>
+        </div>
         <button class="danger" onclick="deleteSelectedReportItems()">Delete Selected Items</button>
       </div>
       <div class="table-wrap" style="margin-top:14px">
         <table>
-          <thead><tr><th style="width:40px"><input type="checkbox" id="reportItemSelectAll" onclick="toggleAllReportItems(this)"></th><th>Item Code</th><th>Item</th><th>Category</th><th>Location</th><th>PO#</th><th>Date Recorded</th><th class="r">Opening</th><th class="r">Received</th><th class="r">Issued</th><th class="r">Adj.</th><th class="r">Closing Balance</th><th>Unit</th><th class="r">Closing Wt (tons)</th><th>Status</th></tr></thead>
+          <thead><tr><th style="width:40px"><input type="checkbox" id="reportItemSelectAll" onclick="toggleAllReportItems(this)"></th><th>Row Labels</th><th class="r">Opening Balance</th><th class="r">Received</th><th class="r">Dispatched</th><th class="r">Adjustments</th><th class="r">Closing balance</th><th>Last Movement Date</th><th>Latest Movement</th></tr></thead>
           <tbody id="reportBody"></tbody>
         </table>
       </div>
@@ -449,8 +458,37 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}
     </div>
   </section>
 </main>
-<footer>WV HEA Inventory · Standalone · Project By: EAC</footer>
+<footer>WV HEA Inventory · Standalone HTML edition · Data stored locally in this browser</footer>
 <div class="toast" id="toast"></div>
+<div class="modal-overlay" id="kitModal">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-head">
+      <div><h3>Kitting — assemble a kit</h3><div class="muted" style="font-size:12px;margin-top:2px">Choose the kit item that receives the <b>Inbound</b>, then list up to 10 components (for example soap) that are deducted as <b>Outbound</b>.</div></div>
+      <button class="close-btn" onclick="closeKitting()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="formgrid" style="margin-bottom:16px">
+        <div class="field"><label>Date *</label><input id="kitDate" type="date"></div>
+        <div class="field"><label>Kit / document ref. (auto if blank)</label><input id="kitRef" placeholder="e.g. KIT-0001, work order no."></div>
+        <div class="field wide"><label>Remarks</label><input id="kitNotes" placeholder="e.g. Hygiene kit assembly"></div>
+        <div class="field wide"><label>Kit item — receives Inbound *</label><select id="kitTarget" onchange="kitTargetChange()"></select></div>
+        <div class="field"><label>Kits assembled (Inbound qty) *</label><input id="kitQty" type="number" min="0.01" step="0.01" placeholder="Qty"></div>
+        <div class="field" id="kitNewWrap" style="display:none"><label>New kit item name *</label><input id="kitNewName" placeholder="e.g. Hygiene Kit"></div>
+      </div>
+      <div class="form-section" style="margin-bottom:8px">Components used — deducted from stock (Outbound)</div>
+      <div class="table-wrap">
+        <table style="min-width:640px">
+          <thead><tr><th style="width:36px">#</th><th>Component item</th><th style="width:150px">Quantity used</th><th style="width:190px">On hand</th></tr></thead>
+          <tbody id="kitBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="green" onclick="saveKitting()">Save Kitting</button>
+      <button class="secondary" onclick="closeKitting()">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="cardModal" onclick="if(event.target===this)closeCardDetail()">
   <div class="modal" style="max-width:1150px">
     <div class="modal-head">
@@ -634,7 +672,7 @@ function populateMonthFilters(){
   db.transactions.forEach(t=>{if(t.date&&t.date.length>=7)set.add(t.date.slice(0,7))});
   db.items.forEach(i=>{if(i.date&&i.date.length>=7)set.add(i.date.slice(0,7))});
   const sorted=Array.from(set).sort().reverse();
-  ['dashMonthFilter','txMonthFilter','reportMonthFilter','itemMonthFilter'].forEach(id=>{
+  ['dashMonthFilter','txMonthFilter','itemMonthFilter'].forEach(id=>{
     const sel=document.getElementById(id);if(!sel)return;
     const cur=sel.value;
     let html='<option value="ALL">'+(id==='dashMonthFilter'||id==='reportMonthFilter'?'All Months / Lifetime':'All Months')+'</option>';
@@ -841,6 +879,7 @@ function showItemDetail(id){
     <div class="detail-field"><span class="detail-label">Dimensions (cm)</span><span class="detail-value">${esc(x.dimensions||'—')}</span></div>
     <div class="detail-field"><span class="detail-label">Reorder Level</span><span class="detail-value">${fmt(x.reorder)}</span></div>
     ${(x.vehicleType||x.plateNumber||num(x.truckingCost)||num(x.demurrage))?`<div class="detail-field full"><span class="detail-label">Earlier shipment details (recorded before upgrade)</span><span class="detail-value" style="font-weight:400">${esc(x.vehicleType||'—')} · ${esc(x.plateNumber||'—')} · Trucking ${fmt(x.truckingCost)} · Demurrage ${fmt(x.demurrage)}</span></div>`:''}
+    <div class="detail-field full"><span class="detail-label">Latest movement</span><span class="detail-value" style="font-weight:400">${(()=>{const lt=lastMovementOf(x);return lt?esc(lt.date)+' · '+esc(lastMovementText(lt,x)):'No movements recorded'})()}</span></div>
     <div class="detail-field full"><span class="detail-label">Description</span><span class="detail-value" style="font-weight:400">${esc(x.notes||'—')}</span></div>
     <div class="detail-field full"><span class="detail-label">Recent Movements (${txs.length})</span><span class="detail-value" style="font-weight:400">${txs.length?txs.slice(0,5).map(t=>`<div style="margin-bottom:4px"><b>${esc(t.date)}</b> &middot; ${typePill(t.type)} &middot; ${fmt(t.qty)} &middot; ${esc(t.ref||'')}</div>`).join(''):'No movements recorded'}</span></div>
   `;
@@ -1047,6 +1086,87 @@ function deleteSelectedReportTx(){
   if(deleteTxIds(ids))toast(ids.length+' transaction'+(ids.length>1?'s':'')+' deleted. Balance recalculated.');
 }
 
+/* ====== KITTING ====== */
+let txPrevType='INBOUND';
+document.getElementById('txType').addEventListener('focus',e=>{txPrevType=e.target.value});
+document.getElementById('txType').addEventListener('change',e=>{
+  if(e.target.value==='KITTING'){e.target.value=txPrevType==='KITTING'?'INBOUND':txPrevType;openKitting()}
+  else txPrevType=e.target.value;
+});
+const KIT_ROWS=10;
+function openKitting(){
+  if(!db.items.length)return toast('Add inventory items first.',true);
+  const opts='<option value="">— select item —</option>'+db.items.map(x=>`<option value="${x.id}">${esc(x.code)} – ${esc(x.name)} (${fmt(x.stock)} ${esc(x.unit||'')})</option>`).join('');
+  let rows='';
+  for(let i=0;i<KIT_ROWS;i++){
+    rows+=`<tr><td>${i+1}</td><td><select class="kit-item" style="width:100%" onchange="kitRowUpdate(${i})">${opts}</select></td><td><input class="kit-qty" type="number" min="0.01" step="0.01" style="width:100%" placeholder="Qty"></td><td class="muted" id="kitInfo-${i}">—</td></tr>`;
+  }
+  document.getElementById('kitBody').innerHTML=rows;
+  document.getElementById('kitTarget').innerHTML=opts.replace('— select item —','— select the kit item —')+'<option value="__new__">➕ New kit item (not in inventory yet)…</option>';
+  document.getElementById('kitDate').value=today();
+  document.getElementById('kitRef').value='';
+  document.getElementById('kitNotes').value='';
+  document.getElementById('kitQty').value='';
+  document.getElementById('kitNewName').value='';
+  document.getElementById('kitNewWrap').style.display='none';
+  document.getElementById('kitModal').classList.add('open');
+}
+function closeKitting(){document.getElementById('kitModal').classList.remove('open')}
+function kitTargetChange(){document.getElementById('kitNewWrap').style.display=document.getElementById('kitTarget').value==='__new__'?'':'none'}
+function kitRowUpdate(i){
+  const sel=document.querySelectorAll('.kit-item')[i],x=itemById(sel.value);
+  document.getElementById('kitInfo-'+i).textContent=x?'On hand: '+fmt(x.stock)+' '+(x.unit||''):'—';
+}
+function saveKitting(){
+  const date=document.getElementById('kitDate').value||today();
+  const target=document.getElementById('kitTarget').value;
+  const kitQty=num(document.getElementById('kitQty').value);
+  if(!target)return toast('Select the kit item that will receive the Inbound.',true);
+  const newName=document.getElementById('kitNewName').value.trim();
+  if(target==='__new__'){
+    if(!newName)return toast('Enter a name for the new kit item.',true);
+    if(db.items.some(x=>x.name.trim().toLowerCase()===newName.toLowerCase()))return toast('"'+newName+'" already exists. Select it from the list instead.',true);
+  }
+  if(!(kitQty>0))return toast('Enter how many kits were assembled (Inbound quantity).',true);
+  const items=[...document.querySelectorAll('.kit-item')],qtys=[...document.querySelectorAll('.kit-qty')];
+  const comps=[];
+  for(let i=0;i<KIT_ROWS;i++){
+    const id=items[i].value,q=num(qtys[i].value);
+    if(!id&&!qtys[i].value)continue;
+    if(!id)return toast('Row '+(i+1)+': select a component item.',true);
+    if(!(q>0))return toast('Row '+(i+1)+': enter a quantity greater than zero.',true);
+    if(id===target)return toast('Row '+(i+1)+': the kit item cannot be a component of itself.',true);
+    comps.push({id,qty:q,row:i+1});
+  }
+  if(!comps.length)return toast('Select at least one component item to deduct.',true);
+  // stock check, counting the same component picked on several rows
+  const used={};
+  for(const c of comps){
+    used[c.id]=(used[c.id]||0)+c.qty;
+    const x=itemById(c.id);
+    if(used[c.id]>num(x.stock)+0.004)return toast('Row '+c.row+': insufficient stock for '+x.name+'. Available: '+fmt(num(x.stock))+' '+(x.unit||''),true);
+  }
+  // create the kit item if it is new; its weight is the total of the components divided by the kits made
+  let kit=itemById(target);
+  if(target==='__new__'){
+    const kg=comps.reduce((s,c)=>s+c.qty*num(itemById(c.id).weight),0)/kitQty;
+    kit={id:uid(),code:'ITM-'+pad(maxCodeNum(db.items)+1),name:newName,category:'Kits',location:'',po:'',batch:'',expiry:'',unit:'kit',weight:Math.round(kg*1000)/1000,dimensions:'',opening:0,reorder:0,notes:'Created from kitting',date:date};
+    db.items.push(kit);
+  }
+  const kitId='KIT-'+String(new Set(db.transactions.map(t=>t.kit).filter(Boolean)).size+1).padStart(4,'0');
+  const ref=document.getElementById('kitRef').value.trim()||kitId;
+  const remarks=document.getElementById('kitNotes').value.trim();
+  const base=x=>({id:uid(),itemId:x.id,date:date,ref:ref,po:'',party:'',location:x.location||'',vehicleType:'',plateNumber:'',truckingCost:0,demurrage:0,expiry:'',kit:kitId});
+  comps.forEach((c,k)=>{
+    const x=itemById(c.id);
+    db.transactions.push(Object.assign(base(x),{type:'OUTBOUND',qty:c.qty,weight:Math.round(c.qty*num(x.weight)*1000)/1000,notes:'Kitting '+kitId+' → '+kit.name+(remarks?': '+remarks:'')+' (component issued)',created:Date.now()+k}));
+  });
+  db.transactions.push(Object.assign(base(kit),{type:'INBOUND',qty:kitQty,weight:Math.round(kitQty*num(kit.weight)*1000)/1000,notes:'Kitting '+kitId+(remarks?': '+remarks:'')+' ('+comps.length+' component'+(comps.length>1?'s':'')+' used)',created:Date.now()+comps.length}));
+  saveDB();
+  closeKitting();
+  toast('Kitting saved: '+fmt(kitQty)+' '+kit.name+' received, '+comps.length+' component'+(comps.length>1?'s':'')+' deducted ('+ref+').');
+}
+
 /* ====== TRANSACTIONS ====== */
 function renderSelect(){
   const s=document.getElementById('txItem'),old=s.value;
@@ -1081,7 +1201,7 @@ function renderTransactions(){
   const q=(document.getElementById('txSearch')?.value||'').trim().toLowerCase();
   const arr=[...db.transactions].filter(t=>{
     const mm=mFilter==='ALL'||(t.date&&t.date.startsWith(mFilter));
-    const tt=f==='ALL'||t.type===f;
+    const tt=f==='ALL'||t.type===f||(f==='KITTING'&&t.kit);
     const qq=!q||[t.date,t.type,itemCode(t.itemId),itemName(t.itemId),t.qty,t.ref,t.po,t.party,t.location,t.vehicleType,t.plateNumber,t.expiry,t.notes].join(' ').toLowerCase().includes(q);
     return mm&&tt&&qq;
   }).sort((a,b)=>txSort(b,a));
@@ -1258,28 +1378,138 @@ function exportCountSheet(){
 }
 
 /* ====== REPORTS ====== */
-function renderReports(){
-  populateMonthFilters();
-  const m=document.getElementById('reportMonthFilter')?.value||'ALL';
-  const filteredTx=db.transactions.filter(t=>m==='ALL'||(t.date&&t.date.startsWith(m)));
-  const rowsData=db.items.filter(x=>m==='ALL'||String(x.date||'').slice(0,7)<=m).map(x=>{
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const TYPE_LABEL={INBOUND:'Inbound',OUTBOUND:'Outbound',ADJUSTMENT:'Adjustment'};
+let reportCollapsed=new Set();
+function reportPeriod(){
+  const y=document.getElementById('reportYearFilter')?.value||'ALL';
+  let m=document.getElementById('reportMonthFilter')?.value||'ALL';
+  if(y==='ALL')m='ALL';
+  let start='',end='9999-12-31',label='All months / lifetime';
+  if(y!=='ALL'&&m==='ALL'){start=y+'-01-01';end=y+'-12-31';label='Year '+y}
+  if(y!=='ALL'&&m!=='ALL'){start=y+'-'+m+'-01';end=y+'-'+m+'-31';label=MONTHS[Number(m)-1]+' '+y}
+  return {y,m,start,end,label};
+}
+function populateReportFilters(){
+  const ys=document.getElementById('reportYearFilter'),ms=document.getElementById('reportMonthFilter');
+  if(!ys||!ms)return;
+  const years=new Set();
+  db.transactions.forEach(t=>{if(t.date&&t.date.length>=4)years.add(t.date.slice(0,4))});
+  db.items.forEach(i=>{if(i.date&&i.date.length>=4)years.add(i.date.slice(0,4))});
+  const cy=ys.value;
+  ys.innerHTML='<option value="ALL">(All)</option>'+[...years].sort().reverse().map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(years.has(cy))ys.value=cy;
+  if(ms.options.length<13){const cm=ms.value;ms.innerHTML='<option value="ALL">(All)</option>'+MONTHS.map((n,i)=>`<option value="${String(i+1).padStart(2,'0')}">${n}</option>`).join('');ms.value=cm||'ALL'}
+  ms.disabled=ys.value==='ALL';
+  if(ms.disabled)ms.value='ALL';
+}
+function lastMovementOf(x,end){
+  return db.transactions.filter(t=>t.itemId===x.id&&String(t.date||'')<=(end||'9999-12-31')).sort(txSort).pop()||null;
+}
+function lastMovementText(t,x){
+  if(!t)return '';
+  const s=t.type==='OUTBOUND'?-num(t.qty):num(t.qty);
+  return TYPE_LABEL[t.type]+' '+(s<0?'−':'+')+fmt(Math.abs(s))+' '+(x.unit||'')+(t.ref?' · '+t.ref:'');
+}
+function sumRows(list){
+  const s=k=>round(list.reduce((a,r)=>a+r[k],0));
+  return {open:s('open'),i:s('i'),o:s('o'),a:s('a'),close:s('close'),lastDate:list.reduce((m,r)=>r.lastDate&&r.lastDate>m?r.lastDate:m,'')};
+}
+/* One model feeds both the on-screen report and the Excel download */
+function buildReportModel(){
+  const P=reportPeriod();
+  const rows=db.items.filter(x=>!x.date||x.date<=P.end).map(x=>{
     let open=num(x.opening),i=0,o=0,a=0;
     db.transactions.forEach(t=>{
       if(t.itemId!==x.id)return;
-      const q=num(t.qty);
-      if(m==='ALL'){if(t.type==='INBOUND')i+=q;else if(t.type==='OUTBOUND')o+=q;else a+=q;return}
-      const tm=String(t.date||'').slice(0,7);
-      if(tm<m){open+=signedQty(t)}
-      else if(tm===m){if(t.type==='INBOUND')i+=q;else if(t.type==='OUTBOUND')o+=q;else a+=q}
+      const d=String(t.date||''),q=num(t.qty);
+      if(P.start&&d<P.start){open+=signedQty(t);return}
+      if(d>P.end)return;
+      if(t.type==='INBOUND')i+=q;else if(t.type==='OUTBOUND')o+=q;else a+=q;
     });
-    return {x,open:round(open),i:round(i),o:round(o),a:round(a),close:round(open+i-o+a)};
+    const lt=lastMovementOf(x,P.end);
+    return {x,open:round(open),i:round(i),o:round(o),a:round(a),close:round(open+i-o+a),lastDate:lt?lt.date:'',lastText:lastMovementText(lt,x)};
   });
-  document.getElementById('reportBody').innerHTML=rowsData.map(r=>{
-    const x=r.x,w=wtTons(x,r.close);
-    return `<tr><td><input type="checkbox" class="report-item-cb" value="${x.id}" onclick="updateReportItemSelectAll()"></td><td class="code">${esc(x.code)}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.category)}</td><td>${esc(x.location||'—')}</td><td>${esc(itemPO(x.id))||'—'}</td><td>${esc(x.date)}</td><td class="r">${fmt(r.open)}</td><td class="r" style="color:#16877b">+${fmt(r.i)}</td><td class="r" style="color:#c0392b">−${fmt(r.o)}</td><td class="r">${r.a?(r.a>0?'+':'')+fmt(r.a):'—'}</td><td class="r"><b>${fmt(r.close)}</b></td><td>${esc(x.unit)}</td><td class="r">${w>0?fmt(w):'—'}</td><td>${statusPill(x,r.close)}</td></tr>`;
-  }).join('')||'<tr><td colspan="15" class="empty">No data available.</td></tr>';
-  document.getElementById('movementDetailTitle').textContent=m==='ALL'?'Movement Detail':'Movement Detail — '+monthLabel(m);
-  document.getElementById('reportTxBody').innerHTML=[...filteredTx].sort((a,b)=>txSort(b,a)).map(t=>`<tr><td><input type="checkbox" class="report-tx-cb" value="${t.id}" onclick="updateReportTxSelectAll()"></td><td>${esc(t.date)}</td><td>${typePill(t.type)}</td><td class="code">${esc(itemCode(t.itemId))}</td><td>${esc(itemName(t.itemId))}</td><td class="r">${t.type==='ADJUSTMENT'&&num(t.qty)>0?'+':''}${fmt(t.qty)}</td><td>${esc(t.ref||'')}</td><td>${esc(t.po||'—')}</td><td>${esc(t.party||'—')}</td><td>${esc(t.notes||'')}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">No transactions in this period.</td></tr>';
+  const map=new Map();
+  rows.forEach(r=>{const k=(r.x.location||'').trim()||'(blank)';if(!map.has(k))map.set(k,[]);map.get(k).push(r)});
+  const groups=[...map.entries()].sort((p,q)=>p[0]==='(blank)'?1:q[0]==='(blank)'?-1:p[0].localeCompare(q[0])).map(([name,list])=>{
+    list.sort((p,q)=>String(p.x.name).localeCompare(String(q.x.name)));
+    return Object.assign({name,rows:list},sumRows(list));
+  });
+  const tx=db.transactions.filter(t=>{const d=String(t.date||'');return d>=P.start&&d<=P.end}).sort(txSort);
+  return {P,groups,grand:sumRows(rows),tx};
+}
+function toggleReportGroup(name){if(reportCollapsed.has(name))reportCollapsed.delete(name);else reportCollapsed.add(name);renderReports()}
+function expandAllReport(){reportCollapsed.clear();renderReports()}
+function collapseAllReport(){buildReportModel().groups.forEach(g=>reportCollapsed.add(g.name));renderReports()}
+function renderReports(){
+  populateReportFilters();
+  const M=buildReportModel();
+  const blank=v=>v?fmt(v):'';
+  const cells=r=>`<td class="r">${blank(r.open)}</td><td class="r">${blank(r.i)}</td><td class="r">${blank(r.o)}</td><td class="r">${r.a?(r.a>0?'+':'')+fmt(r.a):''}</td><td class="r"><b${r.close<0?' style="color:#c0392b"':''}>${fmt(r.close)}</b></td>`;
+  const out=[];
+  M.groups.forEach(g=>{
+    const col=reportCollapsed.has(g.name);
+    out.push(`<tr class="open-row" style="cursor:pointer" data-g="${esc(g.name)}" onclick="toggleReportGroup(this.dataset.g)"><td></td><td><b>${col?'▸':'▾'} ${esc(g.name)}</b> <span class="muted" style="font-weight:400">(${g.rows.length})</span></td>${cells(g)}<td>${esc(g.lastDate)}</td><td></td></tr>`);
+    if(!col)g.rows.forEach(r=>{
+      out.push(`<tr><td><input type="checkbox" class="report-item-cb" value="${r.x.id}" onclick="updateReportItemSelectAll()"></td><td style="padding-left:34px">${esc(r.x.name)}</td>${cells(r)}<td>${esc(r.lastDate||'—')}</td><td>${esc(r.lastText||'—')}</td></tr>`);
+    });
+  });
+  if(M.groups.length)out.push(`<tr class="total-row"><td></td><td>Grand Total</td>${cells(M.grand)}<td>${esc(M.grand.lastDate)}</td><td></td></tr>`);
+  document.getElementById('reportBody').innerHTML=out.join('')||'<tr><td colspan="9" class="empty">No data available.</td></tr>';
+  document.getElementById('movementDetailTitle').textContent=M.P.y==='ALL'?'Movement Detail':'Movement Detail — '+M.P.label;
+  document.getElementById('reportTxBody').innerHTML=[...M.tx].sort((a,b)=>txSort(b,a)).map(t=>`<tr><td><input type="checkbox" class="report-tx-cb" value="${t.id}" onclick="updateReportTxSelectAll()"></td><td>${esc(t.date)}</td><td>${typePill(t.type)}</td><td class="code">${esc(itemCode(t.itemId))}</td><td>${esc(itemName(t.itemId))}</td><td class="r">${t.type==='ADJUSTMENT'&&num(t.qty)>0?'+':''}${fmt(t.qty)}</td><td>${esc(t.ref||'')}</td><td>${esc(t.po||'—')}</td><td>${esc(t.party||'—')}</td><td>${esc(t.notes||'')}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">No transactions in this period.</td></tr>';
+}
+
+/* Excel download laid out like the INV SUMMARY pivot sample */
+function buildReportWorkbook(){
+  const M=buildReportModel(),P=M.P;
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('INV SUMMARY');
+  ws.properties.outlineProperties={summaryBelow:false};
+  ws.getCell('A1').value='Month';ws.getCell('B1').value=(P.y!=='ALL'&&P.m!=='ALL')?MONTHS[Number(P.m)-1]:'(All)';
+  ws.getCell('A2').value='Year';ws.getCell('B2').value=P.y==='ALL'?'(All)':P.y;
+  ws.getCell('B4').value='Values';
+  const head=['Row Labels','Opening Balance','Received','Dispatched','Adjustments','Closing balance','Last Movement Date','Latest Movement'];
+  const hr=ws.getRow(5);hr.values=head;
+  const thin={style:'thin',color:{argb:'FF8EA9DB'}};
+  hr.eachCell(c=>{c.font={bold:true,name:'Calibri',size:11};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDCE6F1'}};c.border={bottom:thin};c.alignment={horizontal:c.col>=2&&c.col<=6?'right':'left'}});
+  const nf=v=>Number.isInteger(v)?'#,##0':'#,##0.00';
+  const put=(row,r,bold,fill)=>{
+    const vals=[r.open||null,r.i||null,r.o||null,r.a||null,r.close];
+    vals.forEach((v,k)=>{const c=row.getCell(2+k);c.value=v;if(v!=null){c.numFmt=nf(v);c.alignment={horizontal:'right'}}if(k===4&&r.close<0)c.font={bold:true,color:{argb:'FFC0392B'}}});
+    row.getCell(7).value=r.lastDate||null;
+    row.getCell(8).value=r.lastText||null;
+    if(bold)row.eachCell({includeEmpty:true},c=>{if(c.col<=8)c.font=Object.assign({},c.font,{bold:true})});
+    if(fill)for(let c=1;c<=8;c++)row.getCell(c).fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};
+  };
+  let n=6;
+  M.groups.forEach(g=>{
+    const gr=ws.getRow(n++);gr.getCell(1).value=g.name;put(gr,g,true,'FFF2F6FC');
+    g.rows.forEach(r=>{const ir=ws.getRow(n++);ir.getCell(1).value=r.x.name;ir.getCell(1).alignment={horizontal:'left',indent:2};ir.outlineLevel=1;put(ir,r,false,null)});
+  });
+  const tr=ws.getRow(n);tr.getCell(1).value='Grand Total';put(tr,M.grand,true,'FFDCE6F1');
+  for(let c=1;c<=8;c++)tr.getCell(c).border={top:thin,bottom:{style:'double',color:{argb:'FF8EA9DB'}}};
+  [62,17,12,12,13,16,19,46].forEach((w,i)=>{ws.getColumn(i+1).width=w});
+  ws.views=[{state:'frozen',ySplit:5}];
+  // second sheet: every movement in the period
+  const hs=wb.addWorksheet('Movement History');
+  const hh=['Date','Type','Item Code','Item','Location','Quantity','Unit','Weight (kg)','Document Ref','PO#','Supplier / Recipient','Vehicle Type','Plate Number','Trucking Cost','Demurrage','Expiry','Remarks'];
+  hs.addRow(hh).eachCell(c=>{c.font={bold:true};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDCE6F1'}};c.border={bottom:thin}});
+  M.tx.forEach(t=>{const x=itemById(t.itemId);hs.addRow([t.date,TYPE_LABEL[t.type]||t.type,x?.code||'',x?.name||'[Deleted item]',(x?.location||t.location||''),t.type==='OUTBOUND'?-num(t.qty):num(t.qty),x?.unit||'',t.type==='ADJUSTMENT'?null:round(txKg(t)),t.ref||'',t.po||'',t.party||'',t.vehicleType||'',t.plateNumber||'',num(t.truckingCost)||null,num(t.demurrage)||null,t.expiry||'',t.notes||''])});
+  [12,12,11,36,18,10,8,12,18,14,22,16,14,13,12,12,50].forEach((w,i)=>{hs.getColumn(i+1).width=w});
+  hs.views=[{state:'frozen',ySplit:1}];
+  hs.autoFilter={from:'A1',to:'Q1'};
+  return wb;
+}
+async function exportReportExcel(){
+  if(!window.ExcelJS)return toast('Excel library not loaded (check internet). Use Inventory CSV instead.',true);
+  try{
+    const wb=buildReportWorkbook(),P=reportPeriod();
+    const buf=await wb.xlsx.writeBuffer();
+    download('inventory-summary-'+(P.y==='ALL'?'all':P.y+(P.m==='ALL'?'':'-'+P.m))+'-'+today()+'.xlsx',buf,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    toast('Report downloaded.');
+  }catch(err){console.error(err);toast('Could not create the Excel report.',true)}
 }
 
 /* ====== RENDER ALL ====== */
@@ -1417,7 +1647,7 @@ function exportItemsExcel(){
 
 /* ====== KEYBOARD SHORTCUTS ====== */
 document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){closeItemDetail();closeCardDetail()}
+  if(e.key==='Escape'){closeItemDetail();closeCardDetail();closeKitting()}
   if((e.altKey&&e.key.toLowerCase()==='u')||(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='u')){e.preventDefault();document.getElementById('excelImportFileNav').click()}
   if(e.altKey&&e.key.toLowerCase()==='d'){e.preventDefault();showTab('dashboard')}
   if(e.altKey&&e.key.toLowerCase()==='i'){e.preventDefault();showTab('items')}
